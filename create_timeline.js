@@ -41,7 +41,7 @@
 // // ======= 設定ここまで =======
 
 // // 2) 外部ホストされた共通コードを fetch
-// const url = "https://gist.githubusercontent.com/reoreo2/51efcb2b318bd21b46533e2fec6d16e7/raw/gistfile1.txt";
+// const url = "https://raw.githubusercontent.com/ylabjp/airtable_scripts/refs/heads/main/create_timeline.js";
 // eval(await (await remoteFetchAsync(url)).text());
 
 // // // 3) 取得したコードを評価し、実行
