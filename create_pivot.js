@@ -52,7 +52,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
         };
         
         targetNames.forEach(targetName => {
-            const name = (record.getCellValue('Name') || '').toString().toLowerCase();
+            const name = (record.getCellValue(resourceName) || '').toString().toLowerCase();
             const lowercaseTargetName = targetName.toLowerCase().trim();
             const result = name.includes(lowercaseTargetName);
             row[targetName] = result
