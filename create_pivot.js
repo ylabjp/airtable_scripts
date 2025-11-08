@@ -127,7 +127,9 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             // データを50個ずつのバッチに分割
             let batches = chunkArray(data, 50);
             for (let batch of batches) {
-                await newTable.createRecordsAsync(batch.map(row => ({fields: row})));
+                const row = batch.map(row => ({fields: row}))
+                console.log('row',row)
+                await newTable.createRecordsAsync(row);
             }
             // await newTable.createRecordsAsync(data.map(row => ({fields: row})));
         }
