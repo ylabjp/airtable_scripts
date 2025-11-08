@@ -1,7 +1,42 @@
-// keyWordTableName = 'Plasmid_name'
-// resourceTableName = 'Plasmid'
-// 
-async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName}) {
+/* スクリプト仕様
+引数
+1. keyWordTableName:マトリックスの列項目名のテーブル名
+ - このテーブルの”keyword”列がマトリックスの列項目となる。
+ - ”keyword”列がなければエラー。
+2. resourceTableName:マトリックスの各行に当たる
+ - 引数4:resourceNo, 引数5:resourceNameの2列の情報は、マトリックスに“No”列、”Name”列として各行にコピーされる。
+　resourceNo、resourceNameに該当するがなければエラー。
+ - このテーブルの”Name”列に各keywordが含まれているか否かがマトリックスの要素になる。
+3. updateTableName:マトリックスのテーブル名
+ - テーブルが存在しなければ新規作成
+4. resourceNo:resourceTableの中でキーとなる列名
+ - マトリックスに“No”列として各行にコピーされる。
+ - この引数に指定した列名がresourceTableに存在しなければエラー。
+5. resourceName:resourceTableの中で名称となる列名
+ - マトリックスに“Name”列として各行にコピーされる。
+ - この引数に指定した列名がresourceTableに存在しなければエラー。
+*/
+
+/* airtableのScriptサンプル
+// 1) パラメータ設定
+const keyWordTableName = "Plasmid_name_test";
+const resourceTableName = "Plasmid";
+const updateTableName = "Plasmid_test";
+const resourceNo = "No"
+const resourceName = "Name"
+// ======= 設定ここまで =======
+
+// 2) 外部ホストされた共通コードを fetch
+const url = "https://gist.githubusercontent.com/reoreo2/41b9fe9c688883b2f4b7f55e24d67237/raw/gistfile1.txt";
+
+// 3) コードを取得し、評価
+eval(await (await remoteFetchAsync(url)).text());
+
+// 4) 実行
+await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , resourceNo, resourceName});
+*/
+
+async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName, resourceNo, resourceName}) {
     let keyWordTable = base.getTable(keyWordTableName);
     let querykeyWordTable = await keyWordTable.selectRecordsAsync();
 
@@ -12,8 +47,8 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     let data = queryResourceTable.records.map(record => {
         let row = {
-            'No': record.getCellValue('No'),
-            'Name': record.getCellValue('Name'),
+            'No': record.getCellValue(resourceNo),
+            'Name': record.getCellValue(resourceName),
         };
         
         targetNames.forEach(targetName => {
@@ -21,10 +56,6 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             const lowercaseTargetName = targetName.toLowerCase().trim();
             const result = name.includes(lowercaseTargetName);
             row[targetName] = result
-            // console.log('-----');
-            // console.log('Name:', name);
-            // console.log('Target Name:', lowercaseTargetName);
-            // console.log('Result:', result);
         });
         
         return row;
@@ -41,16 +72,6 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             "precision" : 0
         }},
         {name: 'Name', type: 'singleLineText'},
-        // {name: 'Status', type: 'singleSelect'},
-        // {name: 'Deriveration', type: 'singleLineText'},
-        // {name: 'SequenceDate', type: 'date', options : {
-        //     "dateFormat":{
-        //         "format": "YYYY-MM-DD",
-        //         "name": "iso"
-        //     }
-        // }},
-        // {name: 'E Coli', type: 'singleSelect'},
-        // {name: 'Note', type: 'singleLineText'},
         ...targetNames.map(name => ({name, type: 'checkbox', options : {
             "color": "greenBright",
             "icon": "check"
@@ -74,19 +95,9 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             let fieldsToCreate = fields.filter(field => !existingFields.find(f => f.name === field.name));
             let fieldsToDelete = existingFields.filter(field => !fields.find(f => f.name === field.name) && field.name !== 'Name');
 
-
-            // // 不要なフィールドを削除 (Nameフィールドは削除しない)
-            // for (let field of fieldsToDelete) {
-            //     // await newTable.deleteFieldAsync(field);
-            //     await newTable.updateFieldAsync(field, {hidden: true});
-            // }
-
-            // 新しいフィールドを作成
-            // await newTable.createFieldAsync(fieldsToCreate);
             for (let field of fieldsToCreate) {
                 await newTable.createFieldAsync(field.name, field.type, field.options);
             }
-
 
             // 既存のレコードを削除
             let existingRecords = await newTable.selectRecordsAsync();
