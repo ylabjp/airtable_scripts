@@ -1,54 +1,74 @@
+/* スクリプト仕様
+- 指定したTableのdate/dateTimeフィールドの内容を、指定したテーブルに一元化する。
 
-// // ======= 設定ここから =======
-// const settings = [
-//     {
-//         tableName: "Lysate",
-//         excludeFields: [],
-//         timelineLinkField: "Lysate" // time line テーブル側のリンクフィールド名
-//     },
-//     {
-//         tableName: "Mice",
-//         excludeFields: ["Birth_custom"],
-//         timelineLinkField: "Mice"
-//     },
-//         {
-//         tableName: "Histology",
-//         excludeFields: ["Birth_custom"],
-//         timelineLinkField: "Histology"
-//     }
-// ];
+- 引数
+1. settings:timeLine作成対象のテーブル名、除外列名、timeLineテーブル上のフィールド名を定義
+2. rename_map
+3. timelineTableName:timeLineのテーブル名
+4. daysAgo(任意)：直近何日分のtimeLineを作成するか。(未指定なら30日)
 
-// const rename_map = {
-//     "Injection date": "M1_Injection date",
-//     "Tam start": "M2_Tam start",
-//     "Tam end": "M3_Tam end",
-//     "Biotin start": "M4_Biotin start",
-//     "Biotin end": "M5_Biotin end",
-//     "Sacrifice date":"M6_Sacrifice date",
-//     "Lysate date": "L1_Lysate date",
-//     "Biotin date": "L2_Biotin date",
-//     "Purification date": "L3_Purification date",
-//     "WB date": "L4_WB date",
-//     "SYPRO Ruby date": "L5_SYPRO Ruby date",
-//     "SliceDate": "H1_SliceDate",
-//     "StainingDate": "H2_StainingDate",
-//     "ImagingDate": "H3_ImagingDate",
-// };
+- エラーハンドリング
+ - timelineTableNameのテーブルが存在しなかったとき
+   - 自動でテーブルを作成する。ただし、Name列はsingleLineTextになっているため、手動でformulaに変更する必要アリ。
+ - timelineTableNameのテーブルが存在するとき
+   - settings.timelineLinkFieldがtimelineTable上に存在しないとき、列を自動追加。
+   - Task type列がsingleLineText型でないとき、エラー。
+   - Date列Date型でないとき、エラー。
 
-// //タイムラインを作るテーブル名
-// const timelineTableName = "time line";
-// const daysAgo = 120;
-// // ======= 設定ここまで =======
+*/
 
-// // 2) 外部ホストされた共通コードを fetch
-// const url = "https://raw.githubusercontent.com/ylabjp/airtable_scripts/refs/heads/main/create_timeline.js";
-// eval(await (await remoteFetchAsync(url)).text());
+/* airtableのScriptサンプル
 
-// // // 3) 取得したコードを評価し、実行
-// // eval(code);
-// // globalThis.runTimelineUpdate が定義されている想定
-// await runTimelineUpdate({ settings, rename_map, timelineTableName, daysAgo:daysAgo});
+// ======= 設定ここから =======
+const settings = [
+    {
+        tableName: "Lysate",
+        excludeFields: [],
+        timelineLinkField: "Lysate" // time line テーブル側のリンクフィールド名
+    },
+    {
+        tableName: "Mice",
+        excludeFields: ["Birth_custom"],
+        timelineLinkField: "Mice"
+    },
+        {
+        tableName: "Histology",
+        excludeFields: ["Birth_custom"],
+        timelineLinkField: "Histology"
+    }
+];
 
+const rename_map = {
+    "Injection date": "M1_Injection date",
+    "Tam start": "M2_Tam start",
+    "Tam end": "M3_Tam end",
+    "Biotin start": "M4_Biotin start",
+    "Biotin end": "M5_Biotin end",
+    "Sacrifice date":"M6_Sacrifice date",
+    "Lysate date": "L1_Lysate date",
+    "Biotin date": "L2_Biotin date",
+    "Purification date": "L3_Purification date",
+    "WB date": "L4_WB date",
+    "SYPRO Ruby date": "L5_SYPRO Ruby date",
+    "SliceDate": "H1_SliceDate",
+    "StainingDate": "H2_StainingDate",
+    "ImagingDate": "H3_ImagingDate",
+};
+
+//タイムラインを作るテーブル名
+const timelineTableName = "time line";
+const daysAgo = 120;
+// ======= 設定ここまで =======
+
+// 2) 外部ホストされた共通コードを fetch
+const url = "https://raw.githubusercontent.com/ylabjp/airtable_scripts/refs/heads/main/create_timeline.js";
+eval(await (await remoteFetchAsync(url)).text());
+
+// // 3) 取得したコードを評価し、実行
+// eval(code);
+// globalThis.runTimelineUpdate が定義されている想定
+await runTimelineUpdate({ settings, rename_map, timelineTableName, daysAgo:daysAgo});
+*/
 
 
 // --- 完全版: runTimelineUpdate (Airtable Scripting API) ---
