@@ -12,9 +12,11 @@
 4. resourceNo:resourceTableの中でキーとなる列名
  - マトリックスに“No”列として各行にコピーされる。
  - この引数に指定した列名がresourceTableに存在しなければエラー。
+ - number型でなければエラー。
 5. resourceName:resourceTableの中で名称となる列名
  - マトリックスに“Name”列として各行にコピーされる。
  - この引数に指定した列名がresourceTableに存在しなければエラー。
+ - singleLineText型でなければエラー。
 */
 
 /* airtableのScriptサンプル
@@ -27,7 +29,7 @@ const resourceName = "Name"
 // ======= 設定ここまで =======
 
 // 2) 外部ホストされた共通コードを fetch
-const url = "https://gist.githubusercontent.com/reoreo2/41b9fe9c688883b2f4b7f55e24d67237/raw/gistfile1.txt";
+const url = "https://raw.githubusercontent.com/ylabjp/airtable_scripts/refs/heads/main/create_pivot.js";
 
 // 3) コードを取得し、評価
 eval(await (await remoteFetchAsync(url)).text());
@@ -77,6 +79,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             "icon": "check"
         },}))
     ];
+    
     async function createOrUpdateTable() {
 
         let existResultTable = false
@@ -87,68 +90,46 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             }
         }
 
-        // try{
+        // 更新先テーブル名が現在のBase内のテーブルに存在するか確認
+        const isExist = base.tables.some(table => table.name === updateTableName);
 
-            // 更新先テーブル名が現在のBase内のテーブルに存在するか確認
-            const isExist = base.tables.some(table => table.name === updateTableName);
+        if(isExist){
+            newTable = base.getTable(updateTableName);
+            // 既存のテーブルのフィールドを更新
+            let existingFields = newTable.fields;
+            let fieldsToCreate = fields.filter(field => !existingFields.find(f => f.name === field.name));
+            let fieldsToDelete = existingFields.filter(field => !fields.find(f => f.name === field.name) && field.name !== 'Name');
 
-            if(isExist){
-                newTable = base.getTable(updateTableName);
-                // 既存のテーブルのフィールドを更新
-                let existingFields = newTable.fields;
-                let fieldsToCreate = fields.filter(field => !existingFields.find(f => f.name === field.name));
-                let fieldsToDelete = existingFields.filter(field => !fields.find(f => f.name === field.name) && field.name !== 'Name');
-
-                for (let field of fieldsToCreate) {
-                    await newTable.createFieldAsync(field.name, field.type, field.options);
-                }
-
-                // 既存のレコードを削除
-                let existingRecords = await newTable.selectRecordsAsync();
-                console.log("existingRecordsSize", existingRecords)
-                let existingRecordBatches = await chunkArray(existingRecords.recordIds, 50);
-                console.log("existingRecordBatches", existingRecordBatches)
-                for (let batch of existingRecordBatches) {
-                    await newTable.deleteRecordsAsync(batch);
-                }
-
-                // レコード再追加
-                let batches = chunkArray(data, 50);
-                for (let batch of batches) {
-                    await newTable.createRecordsAsync(batch.map(row => ({fields: row})));
-                }
-            }else{
-                newTable = await base.createTableAsync(updateTableName, fields);
-                newTable = base.getTable(updateTableName);
-
-                // データを50個ずつのバッチに分割
-                let batches = chunkArray(data, 50);
-                for (let batch of batches) {
-                    const row = batch.map(row => ({fields: row}))
-                    console.log('row',row)
-                    await newTable.createRecordsAsync(row);
-                }
+            for (let field of fieldsToCreate) {
+                await newTable.createFieldAsync(field.name, field.type, field.options);
             }
 
-            // await newTable.deleteRecordsAsync(existingRecords.records);
-            // await newTable.createRecordsAsync(data.map(row => ({fields: row})));
-        // }catch(error1){
-        //     console.log(error1)
-        //     // テーブルが存在しない場合、新規作成
-        //     console.log(fields)
-        //     // newTable = await base.createTableAsync(updateTableName, [{name: "Name", type: "singleLineText"}, {name: "aaa", type: "checkbox"}]);
-        //     newTable = await base.createTableAsync(updateTableName, fields);
-        //     newTable = base.getTable(updateTableName);
+            // 既存のレコードを削除
+            let existingRecords = await newTable.selectRecordsAsync();
+            console.log("existingRecordsSize", existingRecords)
+            let existingRecordBatches = await chunkArray(existingRecords.recordIds, 50);
+            console.log("existingRecordBatches", existingRecordBatches)
+            for (let batch of existingRecordBatches) {
+                await newTable.deleteRecordsAsync(batch);
+            }
 
-        //     // データを50個ずつのバッチに分割
-        //     let batches = chunkArray(data, 50);
-        //     for (let batch of batches) {
-        //         const row = batch.map(row => ({fields: row}))
-        //         console.log('row',row)
-        //         await newTable.createRecordsAsync(row);
-        //     }
-        //     // await newTable.createRecordsAsync(data.map(row => ({fields: row})));
-        // }
+            // レコード再追加
+            let batches = chunkArray(data, 50);
+            for (let batch of batches) {
+                await newTable.createRecordsAsync(batch.map(row => ({fields: row})));
+            }
+        }else{
+            newTable = await base.createTableAsync(updateTableName, fields);
+            newTable = base.getTable(updateTableName);
+
+            // データを50個ずつのバッチに分割
+            let batches = chunkArray(data, 50);
+            for (let batch of batches) {
+                const row = batch.map(row => ({fields: row}))
+                console.log('row',row)
+                await newTable.createRecordsAsync(row);
+            }
+        }
 
         return true
 
