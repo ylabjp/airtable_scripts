@@ -83,7 +83,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             'No': toSingleLineText(record.getCellValue(resourceNo)),
             'Name': toSingleLineText(record.getCellValue(resourceName)),
         };
-        console.log("row",row);
+        // console.log("row",row);
         
         targetNames.forEach(targetName => {
             const name = (record.getCellValue(resourceName) || '').toString().toLowerCase();
@@ -102,7 +102,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     // フィールドの定義
     let fields = [
-        {name: 'No', type: 'number', options: {
+        {name: 'No', type: 'singleLineText', options: {
             "precision" : 0
         }},
         {name: 'Name', type: 'singleLineText'},
