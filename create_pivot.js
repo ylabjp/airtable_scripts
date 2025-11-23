@@ -61,6 +61,13 @@ function toSingleLineText(value) {
         }
     }
 
+    if (typeof value === 'object') {
+        if ('name' in value) return toSingleLineText(value.name);
+        if ('text' in value) return toSingleLineText(value.text);
+        // name も text も無ければ空文字を返す（必要なら id を返す）
+        return '';
+    }
+
     // それ以外（string / number / boolean）を文字列化
     let s = String(value);
 
