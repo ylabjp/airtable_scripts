@@ -4,13 +4,13 @@
  - このテーブルの”keyword”列がマトリックスの列項目となる。
  - ”keyword”列がなければエラー。
 2. resourceTableName:マトリックスの各行に当たる
- - 引数4:resourceNo, 引数5:resourceNameの2列の情報は、マトリックスに“No”列、”Name”列として各行にコピーされる。
-　resourceNo、resourceNameに該当するがなければエラー。
+ - 引数4:resourceId, 引数5:resourceNameの2列の情報は、マトリックスに“Id”列、”Name”列として各行にコピーされる。
+　resourceId、resourceNameに該当するがなければエラー。
  - このテーブルの”Name”列に各keywordが含まれているか否かがマトリックスの要素になる。
 3. updateTableName:マトリックスのテーブル名
  - テーブルが存在しなければ新規作成
-4. resourceNo:resourceTableの中でキーとなる列名
- - マトリックスに“No”列として各行にコピーされる。
+4. resourceId:resourceTableの中でキーとなる列名
+ - マトリックスに“Id”列として各行にコピーされる。
  - この引数に指定した列名がresourceTableに存在しなければエラー。
 5. resourceName:resourceTableの中で名称となる列名
  - マトリックスに“Name”列として各行にコピーされる。
@@ -22,7 +22,7 @@
 const keyWordTableName = "Plasmid_name_test";
 const resourceTableName = "Plasmid";
 const updateTableName = "Plasmid_test";
-const resourceNo = "No"
+const resourceId = "Id"
 const resourceName = "Name"
 // ======= 設定ここまで =======
 
@@ -33,7 +33,7 @@ const url = "https://raw.githubusercontent.com/ylabjp/airtable_scripts/refs/head
 eval(await (await remoteFetchAsync(url)).text());
 
 // 4) 実行
-await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , resourceNo, resourceName});
+await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , resourceId, resourceName});
 */
 
 function toSingleLineText(value) {
@@ -74,7 +74,7 @@ function toSingleLineText(value) {
     return s;
 }
 
-async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName, resourceNo, resourceName}) {
+async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName, resourceId, resourceName}) {
     let keyWordTable = base.getTable(keyWordTableName);
     let querykeyWordTable = await keyWordTable.selectRecordsAsync();
 
@@ -85,7 +85,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     let data = queryResourceTable.records.map(record => {
         let row = {
-            'No': toSingleLineText(record.getCellValue(resourceNo)),
+            'Id': toSingleLineText(record.getCellValue(resourceId)),
             'Name': toSingleLineText(record.getCellValue(resourceName)),
         };
         // console.log("row",row);
@@ -107,7 +107,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     // フィールドの定義
     let fields = [
-        {name: 'No', type: 'singleLineText'},
+        {name: 'Id', type: 'singleLineText'},
         {name: 'Name', type: 'singleLineText'},
         ...targetNames.map(name => ({name, type: 'checkbox', options : {
             "color": "greenBright",
