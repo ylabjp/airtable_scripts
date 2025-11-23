@@ -12,11 +12,9 @@
 4. resourceNo:resourceTableの中でキーとなる列名
  - マトリックスに“No”列として各行にコピーされる。
  - この引数に指定した列名がresourceTableに存在しなければエラー。
- - number型でなければエラー。
 5. resourceName:resourceTableの中で名称となる列名
  - マトリックスに“Name”列として各行にコピーされる。
  - この引数に指定した列名がresourceTableに存在しなければエラー。
- - singleLineText型でなければエラー。
 */
 
 /* airtableのScriptサンプル
