@@ -39,7 +39,6 @@ await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , res
 */
 
 function toSingleLineText(value) {
-    console.log('value',value);
     if (value === null || value === undefined) return '';
 
     // 配列なら各要素を文字列化して結合
@@ -83,6 +82,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
             'No': toSingleLineText(record.getCellValue(resourceNo)),
             'Name': toSingleLineText(record.getCellValue(resourceName)),
         };
+        console.log("row",row);
         
         targetNames.forEach(targetName => {
             const name = (record.getCellValue(resourceName) || '').toString().toLowerCase();
