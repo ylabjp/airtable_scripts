@@ -44,7 +44,7 @@ function toSingleLineText(value) {
 
     // 配列なら各要素を文字列化して結合
     if (Array.isArray(value)) {
-        const parts = value.map(v => toSingleLineText(v)).filter(s => s.length() > 0);
+        const parts = value.map(v => toSingleLineText(v)).filter(s => s && s.length > 0);
         if(parts.length > 0){
             return parts[0];
         }
