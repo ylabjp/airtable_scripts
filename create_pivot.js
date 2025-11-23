@@ -39,6 +39,7 @@ await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , res
 */
 
 function toSingleLineText(value) {
+    print('value',value);
     if (value === null || value === undefined) return '';
 
     // 配列なら各要素を文字列化して結合
