@@ -66,6 +66,7 @@ function toSingleLineText(value) {
 
     // 改行や連続空白を単一スペースに変換してトリム（single-lineにする）
     s = s.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return s;
 }
 
 async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName, resourceNo, resourceName}) {
