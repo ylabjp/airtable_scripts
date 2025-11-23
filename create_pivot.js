@@ -38,6 +38,36 @@ eval(await (await remoteFetchAsync(url)).text());
 await runCreateVari ({keyWordTableName, resourceTableName, updateTableName , resourceNo, resourceName});
 */
 
+function toSingleLineText(value) {
+    if (value === null || value === undefined) return '';
+
+    // 配列なら各要素を文字列化して結合
+    if (Array.isArray(value)) {
+        const parts = value.map(v => toSingleLineText(v)).filter(s => s.length > 0);
+        if(parts.length > 0){
+            return parts[0];
+        }
+        return ''
+    }
+
+    if (typeof value === 'function') {
+        try {
+            const result = value(); // 同期関数を想定
+            // Promise を返す可能性があるなら次の行を追加で処理する必要あり
+            return toSingleLineText(result);
+        } catch (e) {
+            // 実行に失敗したら関数を文字列化して返す
+            return value.toString();
+        }
+    }
+
+    // それ以外（string / number / boolean）を文字列化
+    let s = String(value);
+
+    // 改行や連続空白を単一スペースに変換してトリム（single-lineにする）
+    s = s.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function runCreateVari({ keyWordTableName, resourceTableName, updateTableName, resourceNo, resourceName}) {
     let keyWordTable = base.getTable(keyWordTableName);
     let querykeyWordTable = await keyWordTable.selectRecordsAsync();
@@ -49,8 +79,8 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     let data = queryResourceTable.records.map(record => {
         let row = {
-            'No': record.getCellValue(resourceNo),
-            'Name': record.getCellValue(resourceName),
+            'No': toSingleLineText(record.getCellValue(resourceNo)),
+            'Name': toSingleLineText(record.getCellValue(resourceName)),
         };
         
         targetNames.forEach(targetName => {
