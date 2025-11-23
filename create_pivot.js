@@ -102,9 +102,7 @@ async function runCreateVari({ keyWordTableName, resourceTableName, updateTableN
 
     // フィールドの定義
     let fields = [
-        {name: 'No', type: 'singleLineText', options: {
-            "precision" : 0
-        }},
+        {name: 'No', type: 'singleLineText'},
         {name: 'Name', type: 'singleLineText'},
         ...targetNames.map(name => ({name, type: 'checkbox', options : {
             "color": "greenBright",
