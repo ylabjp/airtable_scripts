@@ -238,14 +238,27 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       if (!srcTable) throw new Error(`ソーステーブル "${s.tableName}" が取得できません。`);
       // date / dateTime フィールドを対象（excludeFields を除外）
       const exclude = Array.isArray(s.excludeFields) ? s.excludeFields : [];
-      const dateFields = srcTable.fields.filter(f => (f.type === "date" || f.type === "dateTime") && !exclude.includes(f.name));
+      const includeFunc = Array.isArray(s.includeFunctionalFields) ? s.includeFunctionalFields : [];
+
+      // 抽出条件: 通常のdate/dateTime（exclude除外済） または includeFunctionalFields に含まれるもの
+      const dateFields = srcTable.fields.filter(f => {
+        const isStandardDate = (f.type === "date" || f.type === "dateTime") && !exclude.includes(f.name);
+        const isIncludedFunc = includeFunc.includes(f.name);
+        return isStandardDate || isIncludedFunc;
+      });
+      // const dateFields = srcTable.fields.filter(f => (f.type === "date" || f.type === "dateTime") && !exclude.includes(f.name));
       output.markdown(`ソース ${s.tableName} の date フィールド: ${dateFields.map(f => f.name).join(", ")}`);
 
       const srcQuery = await srcTable.selectRecordsAsync();
       for (const rec of srcQuery.records) {
         for (const fld of dateFields) {
-          const val = rec.getCellValue(fld);
+          let val = rec.getCellValue(fld);
           if (!val) continue;
+
+          // LookupやRollupなど、Airtableの仕様で値が配列になる場合の対策
+          if (Array.isArray(val) && val.length > 0) {
+            val = val[0];
+          }
           const dt = new Date(val);
           if (isNaN(dt.getTime())) continue;
           if (dt >= cutoff) {
