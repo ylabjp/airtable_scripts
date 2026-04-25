@@ -242,13 +242,15 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       // --- ビュー指定に基づいたレコード取得 ---
       let srcQuery;
       if (s.viewName) {
+        let targetView;
         try {
-          // 指定されたビューが存在するか確認し、レコードを取得
-          srcQuery = await srcTable.selectRecordsAsync({ view: s.viewName });
-          output.markdown(`✅ ${s.tableName}: ビュー "${s.viewName}" から取得を開始します。`);
+         // オプション渡しではなく、明示的にビューの存在を確認する
+         targetView = srcTable.getView(s.viewName);
         } catch (e) {
-          throw new Error(`テーブル "${s.tableName}" 内にビュー "${s.viewName}" が見つかりませんでした。設定を確認してください。`);
+          throw new Error(`テーブル "${s.tableName}" 内にビュー "${s.viewName}" が見つかりません。設定を確認してください。`);
         }
+        srcQuery = await targetView.selectRecordsAsync();
+        output.markdown(`✅ ${s.tableName}: ビュー "${s.viewName}" から取得を開始します。`);
       } else {
         // ビュー指定がない場合は全件取得
         srcQuery = await srcTable.selectRecordsAsync();
