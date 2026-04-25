@@ -2,7 +2,7 @@
 - 指定したTableのdate/dateTimeフィールドの内容を、指定したテーブルに一元化する。
 
 - 引数
-1. settings:timeLine作成対象のテーブル名、除外列名、timeLineに含めたいformula列名(Date型のみ対象)、timeLineテーブル上のフィールド名を定義
+1. settings:timeLine作成対象のテーブル名、対象ビュー名(option)、除外列名、timeLineに含めたいformula列名(Date型のみ対象、option)、timeLineテーブル上のフィールド名を定義
 2. rename_map
 3. timelineTableName:timeLineのテーブル名
 4. daysAgo(任意)：直近何日分のtimeLineを作成するか。(未指定なら30日)
@@ -23,6 +23,7 @@
 const settings = [
     {
         tableName: "Lysate",
+        viewName: "Target Records Only",
         excludeFields: [],
         includeFunctionalFields: ["Medium change", "Harvest"],
         timelineLinkField: "Lysate" // time line テーブル側のリンクフィールド名
@@ -237,6 +238,22 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       if (!s.tableName) throw new Error(`settings のエントリに tableName がありません: ${JSON.stringify(s)}`);
       const srcTable = base.getTable(s.tableName);
       if (!srcTable) throw new Error(`ソーステーブル "${s.tableName}" が取得できません。`);
+      
+      // --- ビュー指定に基づいたレコード取得 ---
+      let srcQuery;
+      if (s.viewName) {
+        try {
+          // 指定されたビューが存在するか確認し、レコードを取得
+          srcQuery = await srcTable.selectRecordsAsync({ view: s.viewName });
+          output.markdown(`✅ ${s.tableName}: ビュー "${s.viewName}" から取得を開始します。`);
+        } catch (e) {
+          throw new Error(`テーブル "${s.tableName}" 内にビュー "${s.viewName}" が見つかりませんでした。設定を確認してください。`);
+        }
+      } else {
+        // ビュー指定がない場合は全件取得
+        srcQuery = await srcTable.selectRecordsAsync();
+      }
+
       // date / dateTime フィールドを対象（excludeFields を除外）
       const exclude = Array.isArray(s.excludeFields) ? s.excludeFields : [];
       const includeFunc = Array.isArray(s.includeFunctionalFields) ? s.includeFunctionalFields : [];
@@ -250,7 +267,7 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       // const dateFields = srcTable.fields.filter(f => (f.type === "date" || f.type === "dateTime") && !exclude.includes(f.name));
       output.markdown(`ソース ${s.tableName} の date フィールド: ${dateFields.map(f => f.name).join(", ")}`);
 
-      const srcQuery = await srcTable.selectRecordsAsync();
+      // const srcQuery = await srcTable.selectRecordsAsync();
       for (const rec of srcQuery.records) {
         for (const fld of dateFields) {
           let val = rec.getCellValue(fld);
