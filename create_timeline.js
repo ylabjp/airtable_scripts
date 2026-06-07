@@ -341,13 +341,14 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
           if (isNaN(dt.getTime())) continue;
           if (dt >= cutoff) {
             const dateStr = dt.toISOString().split("T")[0];
+            const taskTypeStr = rename_map && rename_map[fld.name] ? rename_map[fld.name] : fld.name;
 
             // Defensive: timeline にリンクフィールドが存在するか確認
             fields = refreshFields();
             if (!fields.find(f => f.name === s.timelineLinkField)) {
               throw new Error(`タイムラインにリンクフィールド "${s.timelineLinkField}" が存在しません（想定外）。`);
             }
-            
+
             // --- 追加: 差分更新の重複チェック ---
             if (incrementalUpdate) {
               const uniqueKey = `${rec.id}_${taskTypeStr}`;
