@@ -74,7 +74,7 @@ await runTimelineUpdate({ settings, rename_map, timelineTableName, daysAgo:daysA
 
 
 // --- 完全版: runTimelineUpdate (Airtable Scripting API) ---
-async function runTimelineUpdate({ settings, rename_map, timelineTableName, daysAgo = 30 }) {
+async function runTimelineUpdate({ settings, rename_map, timelineTableName, daysAgo = 30, incrementalUpdate = false }) {
   try {
     // basic validation
     if (!Array.isArray(settings) || settings.length === 0) {
@@ -83,6 +83,18 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
     if (!timelineTableName || typeof timelineTableName !== "string") {
       throw new Error("timelineTableName が正しく指定されていません。");
     }
+
+    // 値を singleLineText 用の文字列に変換するヘルパー関数（配列のカンマ区切り対応）
+    const formatValueToString = (val) => {
+      if (val === null || val === undefined) return "";
+      if (Array.isArray(val)) {
+        return val.map(v => typeof v === 'object' ? (v.name || v.id || JSON.stringify(v)) : String(v)).join(", ");
+      }
+      if (typeof val === 'object') {
+        return val.name || val.id || JSON.stringify(val);
+      }
+      return String(val);
+    };
 
     // --- 1) Timeline テーブルが存在するか取得。なければ作成（まず date は含めず作成） ---
     let timelineTable;
@@ -214,20 +226,65 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       }
     }
 
-    // --- 6) 既存タイムラインレコードを全削除（50件ずつのバッチ） ---
-    output.markdown(`既存のタイムラインレコードを削除します（存在する場合）。`);
+    // --- 追加: addColumns で指定されたフィールドの存在確認・追加 ---
+    const allAddColumns = new Set();
+    settings.forEach(s => {
+      if (Array.isArray(s.addColumns)) {
+        s.addColumns.forEach(c => allAddColumns.add(c));
+      }
+    });
+    for (const colName of allAddColumns) {
+      if (!fields.find(f => f.name === colName)) {
+        output.markdown(`⚠️ 追加カラム "${colName}" が無いため追加します。`);
+        await base.getTable(timelineTableName).createFieldAsync(colName, "singleLineText");
+        fields = refreshFields();
+      }
+    }
+
+    // --- 既存レコードの削除 または 差分キーの取得 ---
+    const existingKeys = new Set(); // 差分更新用のキー保存場所
     const existingRecords = (await base.getTable(timelineTableName).selectRecordsAsync()).records;
-    if (existingRecords.length > 0) {
-      output.markdown(`既存レコード数: ${existingRecords.length} -> 削除を開始します。`);
+
+    if (!incrementalUpdate) {
+      // 従来通り全削除
+      output.markdown(`🔄 全削除モード: 既存レコード（${existingRecords.length}件）を削除します...`);
       for (let i = 0; i < existingRecords.length; i += 50) {
-        const batch = existingRecords.slice(i, i + 50);
-        const ids = batch.map(r => r.id);
-        await base.getTable(timelineTableName).deleteRecordsAsync(ids);
-        output.markdown(`Deleted records ${i}..${i + ids.length - 1}`);
+        await base.getTable(timelineTableName).deleteRecordsAsync(existingRecords.slice(i, i + 50).map(r => r.id));
       }
     } else {
-      output.markdown("既存レコードはありません。");
+      // 差分更新モード: 既存のデータを把握する
+      output.markdown(`⚡ 差分更新モード: 既存レコード（${existingRecords.length}件）との差分のみ追加します...`);
+      for (const rec of existingRecords) {
+        const taskType = rec.getCellValueAsString("Task type");
+        let linkedId = null;
+        // どのテーブルとリンクしているかを探す
+        for (const s of settings) {
+          const linkVal = rec.getCellValue(s.timelineLinkField);
+          if (linkVal && linkVal.length > 0) {
+            linkedId = linkVal[0].id;
+            break;
+          }
+        }
+        if (linkedId && taskType) {
+          // 「元レコードID_タスク名」をキーにして登録済かを記憶
+          existingKeys.add(`${linkedId}_${taskType}`);
+        }
+      }
     }
+    // // --- 6) 既存タイムラインレコードを全削除（50件ずつのバッチ） ---
+    // output.markdown(`既存のタイムラインレコードを削除します（存在する場合）。`);
+    // const existingRecords = (await base.getTable(timelineTableName).selectRecordsAsync()).records;
+    // if (existingRecords.length > 0) {
+    //   output.markdown(`既存レコード数: ${existingRecords.length} -> 削除を開始します。`);
+    //   for (let i = 0; i < existingRecords.length; i += 50) {
+    //     const batch = existingRecords.slice(i, i + 50);
+    //     const ids = batch.map(r => r.id);
+    //     await base.getTable(timelineTableName).deleteRecordsAsync(ids);
+    //     output.markdown(`Deleted records ${i}..${i + ids.length - 1}`);
+    //   }
+    // } else {
+    //   output.markdown("既存レコードはありません。");
+    // }
 
     // --- 7) 新規作成データ収集 ---
     const cutoff = new Date();
@@ -259,6 +316,7 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
       // date / dateTime フィールドを対象（excludeFields を除外）
       const exclude = Array.isArray(s.excludeFields) ? s.excludeFields : [];
       const includeFunc = Array.isArray(s.includeFunctionalFields) ? s.includeFunctionalFields : [];
+      const addCols = Array.isArray(s.addColumns) ? s.addColumns : [];
 
       // 抽出条件: 通常のdate/dateTime（exclude除外済） または includeFunctionalFields に含まれるもの
       const dateFields = srcTable.fields.filter(f => {
@@ -283,10 +341,29 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
           if (isNaN(dt.getTime())) continue;
           if (dt >= cutoff) {
             const dateStr = dt.toISOString().split("T")[0];
+
             // Defensive: timeline にリンクフィールドが存在するか確認
             fields = refreshFields();
             if (!fields.find(f => f.name === s.timelineLinkField)) {
               throw new Error(`タイムラインにリンクフィールド "${s.timelineLinkField}" が存在しません（想定外）。`);
+            }
+            
+            // --- 追加: 差分更新の重複チェック ---
+            if (incrementalUpdate) {
+              const uniqueKey = `${rec.id}_${taskTypeStr}`;
+              if (existingKeys.has(uniqueKey)) {
+                continue; // 既にタイムラインに存在する場合はスキップ
+              }
+            }
+
+            // --- 追加: addColumnsのデータを取得して文字列化 ---
+            const additionalFieldsData = {};
+            for (const colName of addCols) {
+              // 元テーブルにそのカラムが存在するか確認
+              if (srcTable.fields.find(f => f.name === colName)) {
+                const rawValue = rec.getCellValue(colName);
+                additionalFieldsData[colName] = formatValueToString(rawValue);
+              }
             }
 
             toCreate.push({
@@ -294,7 +371,8 @@ async function runTimelineUpdate({ settings, rename_map, timelineTableName, days
                 [s.timelineLinkField]: [{ id: rec.id }],
                 "Task type": rename_map && rename_map[fld.name] ? rename_map[fld.name] : fld.name,
                 "Date": dateStr,
-                "Name": rec.name || "(no name)"
+                "Name": rec.name || "(no name)",
+                ...additionalFieldsData // 追加カラムのデータをマージ
               }
             });
           }
