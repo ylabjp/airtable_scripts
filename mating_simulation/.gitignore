@@ -1,0 +1,7 @@
+# 秘密情報 (Airtable のトークン)
+.env
+# 実行結果・手元のバックアップ・個人の Claude Code 設定
+results/
+backups/
+.claude/
+__pycache__/
