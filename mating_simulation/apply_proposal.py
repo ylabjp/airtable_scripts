@@ -106,7 +106,7 @@ def main():
         print(json.dumps({"table": ms.T_MATING, "base": ms.BASE_ID, "records": [{"fields": f} for _, f in to_create],
                           "skipped": skipped}, ensure_ascii=False, indent=1))
         return
-    print(f"交配日 {mating_date}（提案 {path.parent.name}、見る期間 {prop['horizon_label']}）")
+    print(f"交配日 {mating_date}（提案 {path.parent.name}、在庫の先読み期間 {prop['horizon_label']}）")
     print(f"\n登録する Mating: {len(to_create)} 件")
     for desc, _ in to_create:
         print(f"  + {desc}")
