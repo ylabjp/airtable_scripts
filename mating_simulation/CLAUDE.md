@@ -4,11 +4,13 @@ Resource_Mice（Airtable base `appBwTnvAtEXHip0i`）の在庫と交配履歴か�
 チャットで確認を取ってから Airtable の Mating テーブルに予定として登録する。ユーザーにはレポートを読ませず、チャットで完結させる。
 
 ## 1. 週次の実行
-1. `pip install -r requirements.txt`
-2. `python mating_simulation.py --auto`（約25分。長いのでバックグラウンドで実行し、終わるまで待つ）
+1. `python -m pip install -r requirements.txt`（`pip` と `python` が別の Python を指す環境があるので、必ず `python -m pip` で入れる）
+2. `python mating_simulation.py --auto`（クラウドで約5〜10分、手元のPCで約25分。バックグラウンドで実行し、終わるまで待つ）
    - 読み取りトークンは環境変数 `AIRTABLE_TOKEN`（クラウド環境のシークレット）。値を表示・保存・コミットしない
    - 見る期間は系統ごとに自動で決まる（年間欠品ペアの95%範囲の上側が `MAX_MISSING_PAIRS` 以下で、ケージ費が最も安い期間）
 3. 出力は `results/<日時>/`：`proposal.json`（今週の交配・購入・見る期間の判定）と `report.html`
+   - `proposal.json` が `"no_plans": true` のときは実験計画がなく、計算していない（report.html もない）。
+     `note` を伝え、Plan4Experiment の MatingPerWeek がすべて 0 か未入力であること、意図したものか確認してほしいことを報告して終わる
 4. `report.html` を Artifact（非公開）として公開し、リンクを得る。Artifact が使えない環境なら、そのことを伝える
 
 ## 2. チャットへの報告
