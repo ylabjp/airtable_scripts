@@ -4,6 +4,8 @@
 内容を確認して「登録して」と返すと、今週金曜の交配が Airtable の Mating に予定として登録されます。
 使う人は1人（ルーチンを作った Claude アカウントの持ち主）で、Claude デスクトップアプリから操作します。
 
+- 入口（このしくみの一式）: https://github.com/ylabjp/airtable_scripts/tree/mating-simulation/mating_simulation
+  - 一式は `mating-simulation` ブランチにだけあり、main にはありません。リポジトリのトップ（main）からはたどれないので、このURLから開きます
 - 共有用のガイド（コメント可）: [繁殖シミュレーション 利用ガイド](https://claude.ai/artifact/3SaqZzaFBbs9TDqAaFxyyR)
 - 計算の詳しい前提（依頼者向けの仕様書）: [仕様書](https://claude.ai/artifact/25Erd2HEDtPGW7p9dwpa7q)
 
