@@ -6,8 +6,7 @@ Airtable の Resource_Mice（在庫マウス・交配履歴・実験計画）か
 - WT メスの購入リスト（必要日と発注期限）
 - 系統ごとの「在庫の先読み期間」（何ヶ月先の親マウスの在庫を見込んで維持交配の数を決めるか）の自動判定と、欠品・ケージ費の比較
 
-入口のURL: https://github.com/ylabjp/airtable_scripts/tree/mating-simulation/mating_simulation
-（一式は `mating-simulation` ブランチにだけあり、main にはありません）
+入口のURL: https://github.com/ylabjp/airtable_scripts/tree/main/mating_simulation
 
 ## 使い方
 **まず [利用ガイド（GUIDE.md）](GUIDE.md) を読んでください。** 初回の準備、毎週の使い方、困ったときの対処がまとまっています。
