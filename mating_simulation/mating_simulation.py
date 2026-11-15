@@ -14,7 +14,7 @@ Resource_Mice 繁殖シミュレーション
   python mating_simulation.py                       # 交配リスト + 比較 (既定 3〜5ヶ月, 各200回)
   python mating_simulation.py --runs 0              # 交配リストだけ (比較を省略して速く)
   python mating_simulation.py --horizon 4 --horizons 3,3.5,4,4.5,5,6 --runs 500
-  python mating_simulation.py --auto                # 在庫の先読み期間を系統ごとに自動で決める (年間欠品ペア 0.5 以下で最も安い期間, 各1000回)
+  python mating_simulation.py --auto                # 在庫の先読み期間を系統ごとに自動で決める (年間欠品ペアが必要な実験ペアの 1% 以下で最も安い期間, 各1000回)
   出力: results/<日時>/report.html, actions.csv, purchases.csv, comparison_summary.csv, comparison_weekly.csv
 
 Airtable は読み取りのみ (シミュレーション結果は書き込まない)。
@@ -86,7 +86,8 @@ HORIZON_DEFINITION = "在庫の先読み期間：何ヶ月先の親マウスの�
 # 3ヶ月未満は、今週の交配の子 (妊娠25日 + 生後2ヶ月) が在庫の先読み期間に入らず数えられないため、維持交配が過剰になる。候補に入れない
 AUTO_HORIZONS = "3,3.5,4,4.5,5,5.5,6"
 AUTO_RUNS = 1000            # 200回では欠品ペアが半分程度にぶれることがあるため
-MAX_MISSING_PAIRS = 0.5     # 系統ごとの年間欠品ペアの上限。平均の95%範囲の上側 (ALERT_Z) で判定する
+MAX_MISSING_PCT = 1.0       # 系統ごとの年間欠品ペアの上限 = 52週で必要な実験ペア数 × この割合 (%)。
+                            # 平均の95%範囲の上側 (ALERT_Z) で判定する
 
 # ---- 購入 ----
 WT_LEAD_WEEKS = 3        # WTメスの発注から交配に使えるまでの週数 (仮置き。分かり次第変更)
@@ -889,38 +890,47 @@ def mean_upper(values, z=ALERT_Z):
     return mean + z * math.sqrt(sum((x - mean) ** 2 for x in values) / (n - 1) / n)
 
 
-def choose_horizons(sim, summary, per_run, max_missing=MAX_MISSING_PAIRS):
-    """系統ごとに、年間欠品ペアの95%範囲の上側が max_missing 以下の期間のうち、年間ケージ費が最も安い期間を選ぶ。
+def missing_limit(required, pct):
+    """系統の年間欠品ペアの上限 (52週で必要な実験ペア数 × pct%)"""
+    return required * pct / 100
+
+
+def choose_horizons(sim, summary, per_run, max_missing_pct=MAX_MISSING_PCT):
+    """系統ごとに、年間欠品ペアの95%範囲の上側が上限 (必要な実験ペア × max_missing_pct%) 以下の期間のうち、
+    年間ケージ費が最も安い期間を選ぶ。
     どの期間も満たさなければ欠品が最も少ない期間を選び、警告 (kind="shortage") にする
     返り値: {グループ key: 在庫の先読み期間}, レポート・チャット用の判定理由 (alerts と同じ形)"""
     chosen, notes = {}, []
     for key in sim.groups:
         rows = [s for s in summary if s["group"] == key]
         upper = {s["horizon"]: mean_upper(per_run[(key, s["horizon"])]["missing"]) for s in rows}
-        ok = [s for s in rows if upper[s["horizon"]] <= max_missing + 1e-9]
+        limit = missing_limit(rows[0]["required"], max_missing_pct)
+        limit_text = f"上限 {limit:.2f} ペア（必要な実験ペア {rows[0]['required']} の {max_missing_pct:g}%）"
+        ok = [s for s in rows if upper[s["horizon"]] <= limit + 1e-9]
         if ok:
             b = min(ok, key=lambda s: (s["cost_mean"], s["horizon"]))
             kind = "auto"
             text = (f"在庫の先読み期間は{months_label(b['horizon'])}にします。年間の欠品ペア {b['missing_mean']:.2f}"
-                    f"（95%の範囲の上側 {upper[b['horizon']]:.2f}）が上限 {max_missing:g} ペア以下になる期間のうち、"
+                    f"（95%の範囲の上側 {upper[b['horizon']]:.2f}）が{limit_text}以下になる期間のうち、"
                     f"年間ケージ費が最も安い（{b['cost_mean'] / 1e4:.1f} 万円）。")
         else:
             b = min(rows, key=lambda s: (s["missing_mean"], s["cost_mean"]))
             kind = "shortage"
-            text = (f"どの期間でも年間の欠品ペアが上限 {max_missing:g} ペア以下とは言えません。"
+            text = (f"どの期間でも年間の欠品ペアが{limit_text}以下とは言えません。"
                     f"欠品が最も少ない{months_label(b['horizon'])}にします（欠品ペア {b['missing_mean']:.2f}、"
                     f"95%の範囲の上側 {upper[b['horizon']]:.2f}、年間ケージ費 {b['cost_mean'] / 1e4:.1f} 万円）。"
                     "親の在庫か実験計画の見直しを検討してください。")
         chosen[key] = b["horizon"]
         notes.append({"group": key, "name": group_label(sim, key), "kind": kind, "horizon": b["horizon"],
-                      "missing_mean": b["missing_mean"], "missing_upper": upper[b["horizon"]],
+                      "missing_mean": b["missing_mean"], "missing_upper": upper[b["horizon"]], "missing_limit": limit,
                       "shortage_prob": b["shortage_prob"], "cost_mean": b["cost_mean"], "text": text})
     return chosen, notes
 
 
-def auto_rule(max_missing, horizons):
+def auto_rule(max_missing_pct, horizons):
     return (f"在庫の先読み期間の自動判定：系統ごとに{'、'.join(months_label(h) for h in horizons)}を比べ、"
-            f"年間の欠品ペアの平均の95%範囲の上側が {max_missing:g} ペア以下になる期間のうち、年間ケージ費が最も安い期間を使う。"
+            f"年間の欠品ペアの平均の95%範囲の上側が上限（系統の52週で必要な実験ペア数の {max_missing_pct:g}%）以下になる期間のうち、"
+            "年間ケージ費が最も安い期間を使う。"
             "どの期間も満たさないときは、欠品が最も少ない期間を使い、警告を出す。"
             "各期間は全系統を同じ期間にして計算し、系統ごとの欠品と費用で判定する。")
 
@@ -1483,9 +1493,9 @@ def write_proposal(path, sim, std_by_key, label, auto_notes, actions, purchases,
 def main():
     ap = argparse.ArgumentParser(description="Resource_Mice 繁殖シミュレーション (Airtable は読み取りのみ)")
     ap.add_argument("--auto", action="store_true",
-                    help=f"在庫の先読み期間を系統ごとに自動で決める (年間欠品ペアの上限 --max-missing 以下で最も安い期間)")
-    ap.add_argument("--max-missing", type=float, default=MAX_MISSING_PAIRS,
-                    help="--auto のときの系統ごとの年間欠品ペアの上限")
+                    help=f"在庫の先読み期間を系統ごとに自動で決める (年間欠品ペアが上限 --max-missing-pct 以下で最も安い期間)")
+    ap.add_argument("--max-missing-pct", type=float, default=MAX_MISSING_PCT,
+                    help="--auto のときの系統ごとの年間欠品ペアの上限。52週で必要な実験ペア数に対する割合 (%%)")
     ap.add_argument("--horizon", type=float, default=DEFAULT_HORIZON_MONTHS,
                     help="交配リストで使う在庫の先読み期間 (ヶ月, 標準。何ヶ月先の動けるマウスを数えるか)")
     ap.add_argument("--strain-horizon", action="append", default=[], metavar="系統名=ヶ月",
@@ -1531,11 +1541,11 @@ def main():
         print_comparison(sim, summary, runs)
 
     if args.auto:
-        std_by_key, alerts = choose_horizons(sim, summary, per_run, args.max_missing)
-        rule = auto_rule(args.max_missing, horizons)
+        std_by_key, alerts = choose_horizons(sim, summary, per_run, args.max_missing_pct)
+        rule = auto_rule(args.max_missing_pct, horizons)
         horizon = Counter(std_by_key.values()).most_common(1)[0][0]  # 表示上の標準 (系統で最も多い期間)
         label = std_label(sim, horizon, std_by_key)
-        print(f"\n==== 在庫の先読み期間の自動判定 (系統ごとの年間欠品ペアの上限 {args.max_missing:g}) ====")
+        print(f"\n==== 在庫の先読み期間の自動判定 (系統ごとの年間欠品ペアの上限: 必要な実験ペアの {args.max_missing_pct:g}%) ====")
         print(f"  ※{HORIZON_DEFINITION}")
         for a in alerts:
             print(f"  [{a['name']}] {'警告: ' if a['kind'] == 'shortage' else ''}{a['text']}")

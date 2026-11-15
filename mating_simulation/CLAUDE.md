@@ -7,7 +7,7 @@ Resource_Mice（Airtable base `appBwTnvAtEXHip0i`）の在庫と交配履歴か�
 1. `python -m pip install -r requirements.txt`（`pip` と `python` が別の Python を指す環境があるので、必ず `python -m pip` で入れる）
 2. `python mating_simulation.py --auto`（クラウドで約5〜10分、手元のPCで約25分。バックグラウンドで実行し、終わるまで待つ）
    - 読み取りトークンは環境変数 `AIRTABLE_TOKEN`（クラウド環境のシークレット）。値を表示・保存・コミットしない
-   - 在庫の先読み期間は系統ごとに自動で決まる（年間欠品ペアの95%範囲の上側が `MAX_MISSING_PAIRS` 以下で、ケージ費が最も安い期間）
+   - 在庫の先読み期間は系統ごとに自動で決まる（年間欠品ペアの95%範囲の上側が、系統の52週で必要な実験ペア数 × `MAX_MISSING_PCT`%（既定1%）以下で、ケージ費が最も安い期間）
 3. 出力は `results/<日時>/`：`proposal.json`（今週の交配・購入・在庫の先読み期間の判定）と `report.html`
    - `proposal.json` が `"no_plans": true` のときは実験計画がなく、計算していない（report.html もない）。
      `note` を伝え、Plan4Experiment の MatingPerWeek がすべて 0 か未入力であること、意図したものか確認してほしいことを報告して終わる
