@@ -7,14 +7,14 @@ Resource_Mice 繁殖シミュレーション
     - 今週金曜の交配リスト (どのオスとどのメスを交配するか。個体ID・飼育場所つき)
     - 2〜4週先の見通し (交配件数と使えるオスの数)
     - WTメスの購入リスト (必要日と発注期限)
-  月1回と実験計画の変更時に、「何ヶ月先の動けるマウスを数えるか」の比較を見直す
+  月1回と実験計画の変更時に、在庫の先読み期間の比較を見直す
 
 使い方:
   画面から: start_webapp.bat をダブルクリック (または python webapp.py) して、ブラウザで条件を選んで実行
   python mating_simulation.py                       # 交配リスト + 比較 (既定 3〜5ヶ月, 各200回)
   python mating_simulation.py --runs 0              # 交配リストだけ (比較を省略して速く)
   python mating_simulation.py --horizon 4 --horizons 3,3.5,4,4.5,5,6 --runs 500
-  python mating_simulation.py --auto                # 見る期間を系統ごとに自動で決める (年間欠品ペア 0.5 以下で最も安い期間, 各1000回)
+  python mating_simulation.py --auto                # 在庫の先読み期間を系統ごとに自動で決める (年間欠品ペア 0.5 以下で最も安い期間, 各1000回)
   出力: results/<日時>/report.html, actions.csv, purchases.csv, comparison_summary.csv, comparison_weekly.csv
 
 Airtable は読み取りのみ (シミュレーション結果は書き込まない)。
@@ -61,10 +61,10 @@ FEMALES_PER_MALE = 2   # オス1匹とメス2匹で、同じ週に2回分の交�
 BREEDER_MALES = 2
 
 # ---- 在庫予測 ----
-# 何ヶ月先の「動けるマウス」(生存・生後2ヶ月以上・生後12ヶ月以下) を数えて目標数と比べるか
+# 在庫の先読み期間: 何ヶ月先の「動けるマウス」(生存・生後2ヶ月以上・生後12ヶ月以下) を数えて目標数と比べるか
 DEFAULT_HORIZON_MONTHS = 3.5
 DEFAULT_HORIZONS = "3,3.5,4,4.5,5"
-# 系統 (実験計画の目的系統名) ごとの見る期間。ここにない系統は DEFAULT_HORIZON_MONTHS (--horizon) を使う
+# 系統 (実験計画の目的系統名) ごとの在庫の先読み期間。ここにない系統は DEFAULT_HORIZON_MONTHS (--horizon) を使う
 # 例: {"CUL1-KO-Het": 4.5}。実行時に --strain-horizon CUL1-KO-Het=4.5 でも指定できる
 STRAIN_HORIZONS = {}
 # 維持交配は、翌週以降 (休止期間1回分) の実験用交配の欠品を増やさない数までに抑える
@@ -73,15 +73,17 @@ SPARE_LIMIT = True
 PURCHASE_WT_FOR_BREEDING = True
 
 # ---- 見直しの注意 ----
-# 標準の見る期間より良い期間があれば、レポートの冒頭に注意を出す。小さな差で標準を変えないための閾値
+# 標準の在庫の先読み期間より良い期間があれば、レポートの冒頭に注意を出す。小さな差で標準を変えないための閾値
 ALERT_COST_PCT = 3.0       # 欠品が増えずに、年間ケージ費がこの割合 (%) 以上安くなる
 ALERT_MISSING_PAIRS = 0.5  # 年間ケージ費が増えずに、欠品ペアがこの数以上減る / 標準でこの数以上欠品が出ている
 # 差は同じ乱数どうし (同じ試行番号) で比べ、差の95%の範囲が0をまたぐ (偶然でも出る) なら注意を出さない
 ALERT_Z = 1.96
 
-# ---- 見る期間の自動判定 (--auto) ----
+HORIZON_DEFINITION = "在庫の先読み期間：何ヶ月先の親マウスの在庫（生後2〜12ヶ月で交配に使える数）を見込んで、維持交配の数を決めるか。長くすると欠品は減るが、早めに繁殖するのでケージ費が増える。"  # レポート・チャットで最初に出るときに添える
+
+# ---- 在庫の先読み期間の自動判定 (--auto) ----
 # 系統ごとに候補の期間を比べ、年間欠品ペアが上限以下と言える期間のうち年間ケージ費が最も安い期間を使う
-# 3ヶ月未満は、今週の交配の子 (妊娠25日 + 生後2ヶ月) が見る期間に入らず数えられないため、維持交配が過剰になる。候補に入れない
+# 3ヶ月未満は、今週の交配の子 (妊娠25日 + 生後2ヶ月) が在庫の先読み期間に入らず数えられないため、維持交配が過剰になる。候補に入れない
 AUTO_HORIZONS = "3,3.5,4,4.5,5,5.5,6"
 AUTO_RUNS = 1000            # 200回では欠品ペアが半分程度にぶれることがあるため
 MAX_MISSING_PAIRS = 0.5     # 系統ごとの年間欠品ペアの上限。平均の95%範囲の上側 (ALERT_Z) で判定する
@@ -318,17 +320,17 @@ class Simulator:
         self.base_mice = self._parse_mice(inputs["mice"])
         self.groups = self._groups()
         self.targets = self._targets()
-        # 目標を持つ系統 → それを含むグループ (系統別の見る期間を引くため)
+        # 目標を持つ系統 → それを含むグループ (系統別の在庫の先読み期間を引くため)
         self.target_groups = {s: [k for k, g in self.groups.items() if s in g["members"]]
                               for s, _ in self.targets}
 
     def resolve_horizons(self, default, by_name):
-        """{グループ key: 見る期間}。by_name は目的系統名 → ヶ月"""
+        """{グループ key: 在庫の先読み期間}。by_name は目的系統名 → ヶ月"""
         by_key = {k: default for k in self.groups}
         for name, h in by_name.items():
             keys = [k for k in self.groups if self.strain_name.get(k) == name]
             if not keys:
-                raise SystemExit(f"系統別の見る期間: 実験計画に {name} がありません "
+                raise SystemExit(f"系統別の在庫の先読み期間: 実験計画に {name} がありません "
                                  f"(候補: {', '.join(self.strain_name.get(k, k) for k in self.groups)})")
             for k in keys:
                 by_key[k] = h
@@ -469,12 +471,12 @@ class Simulator:
     def run(self, horizon=DEFAULT_HORIZON_MONTHS, rng=None, record=False, spare_limit=SPARE_LIMIT, horizon_by=None):
         """rng=None: 産仔数は期待値 / rng 指定: 履歴分布から抽選
         record=True: 交配リスト・見通し用に、交配したときの個体状態を記録する
-        horizon_by: {グループ key: 見る期間}。指定のないグループは horizon"""
+        horizon_by: {グループ key: 在庫の先読み期間}。指定のないグループは horizon"""
         self.horizon, self.rng, self.record, self.spare_limit = horizon, rng, record, spare_limit
         # 産仔数の乱数は系統ごとに分ける。ある系統の交配数が変わっても、ほかの系統の抽選結果は変わらない
         self.rng_base = rng.getrandbits(64) if rng is not None else None
         self.strain_rngs = {}
-        # 系統ごとの見る期間。複数のグループに属する系統は長いほうを使う
+        # 系統ごとの在庫の先読み期間。複数のグループに属する系統は長いほうを使う
         hb = horizon_by or {}
         self.strain_horizon = {s: max((hb.get(k, horizon) for k in ks), default=horizon)
                                for s, ks in self.target_groups.items()}
@@ -781,7 +783,7 @@ def run_metrics(sim, res):
 
 
 def run_comparison(sim, horizons, runs, seed, horizon_by=None):
-    """見る期間ごとに runs 回くり返す。horizon_by を渡すと、その系統だけ見る期間を固定する
+    """在庫の先読み期間ごとに runs 回くり返す。horizon_by を渡すと、その系統だけ在庫の先読み期間を固定する
     per_run[(group, horizon)] = {"missing": [...], "cost": [...]} は試行番号順 (条件間で同じ乱数どうしを比べるため)"""
     summary, weekly, per_run = [], [], {}
     for h in horizons:
@@ -832,7 +834,7 @@ def paired_diff(base, other, z=ALERT_Z):
 
 
 def horizon_alerts(sim, summary, per_run, std_by_key, cost_pct=ALERT_COST_PCT, missing_pairs=ALERT_MISSING_PAIRS):
-    """系統ごとに、その系統の標準の見る期間 (std_by_key) を見直すべきかを判定する。
+    """系統ごとに、その系統の標準の在庫の先読み期間 (std_by_key) を見直すべきかを判定する。
     better  : 欠品が増えずに費用が cost_pct% 以上安い、または費用が増えずに欠品が missing_pairs 以上少ない期間がある
     shortage: 標準で欠品が missing_pairs 以上出ていて、費用をかければ欠品を減らせる期間がある
     どちらも、良くなる側の差が同じ乱数どうしの比較で偶然と言えない (95%の範囲が0をまたがない) ときだけ出す"""
@@ -890,7 +892,7 @@ def mean_upper(values, z=ALERT_Z):
 def choose_horizons(sim, summary, per_run, max_missing=MAX_MISSING_PAIRS):
     """系統ごとに、年間欠品ペアの95%範囲の上側が max_missing 以下の期間のうち、年間ケージ費が最も安い期間を選ぶ。
     どの期間も満たさなければ欠品が最も少ない期間を選び、警告 (kind="shortage") にする
-    返り値: {グループ key: 見る期間}, レポート・チャット用の判定理由 (alerts と同じ形)"""
+    返り値: {グループ key: 在庫の先読み期間}, レポート・チャット用の判定理由 (alerts と同じ形)"""
     chosen, notes = {}, []
     for key in sim.groups:
         rows = [s for s in summary if s["group"] == key]
@@ -899,14 +901,14 @@ def choose_horizons(sim, summary, per_run, max_missing=MAX_MISSING_PAIRS):
         if ok:
             b = min(ok, key=lambda s: (s["cost_mean"], s["horizon"]))
             kind = "auto"
-            text = (f"{months_label(b['horizon'])}を使います。年間の欠品ペア {b['missing_mean']:.2f}"
+            text = (f"在庫の先読み期間は{months_label(b['horizon'])}にします。年間の欠品ペア {b['missing_mean']:.2f}"
                     f"（95%の範囲の上側 {upper[b['horizon']]:.2f}）が上限 {max_missing:g} ペア以下になる期間のうち、"
                     f"年間ケージ費が最も安い（{b['cost_mean'] / 1e4:.1f} 万円）。")
         else:
             b = min(rows, key=lambda s: (s["missing_mean"], s["cost_mean"]))
             kind = "shortage"
             text = (f"どの期間でも年間の欠品ペアが上限 {max_missing:g} ペア以下とは言えません。"
-                    f"欠品が最も少ない{months_label(b['horizon'])}を使います（欠品ペア {b['missing_mean']:.2f}、"
+                    f"欠品が最も少ない{months_label(b['horizon'])}にします（欠品ペア {b['missing_mean']:.2f}、"
                     f"95%の範囲の上側 {upper[b['horizon']]:.2f}、年間ケージ費 {b['cost_mean'] / 1e4:.1f} 万円）。"
                     "親の在庫か実験計画の見直しを検討してください。")
         chosen[key] = b["horizon"]
@@ -917,7 +919,7 @@ def choose_horizons(sim, summary, per_run, max_missing=MAX_MISSING_PAIRS):
 
 
 def auto_rule(max_missing, horizons):
-    return (f"見る期間の自動判定：系統ごとに{'、'.join(months_label(h) for h in horizons)}を比べ、"
+    return (f"在庫の先読み期間の自動判定：系統ごとに{'、'.join(months_label(h) for h in horizons)}を比べ、"
             f"年間の欠品ペアの平均の95%範囲の上側が {max_missing:g} ペア以下になる期間のうち、年間ケージ費が最も安い期間を使う。"
             "どの期間も満たさないときは、欠品が最も少ない期間を使い、警告を出す。"
             "各期間は全系統を同じ期間にして計算し、系統ごとの欠品と費用で判定する。")
@@ -992,10 +994,10 @@ def print_actions(sim, actions, purchases, outlook):
 
 
 def print_comparison(sim, summary, runs):
-    print(f"\n==== 何ヶ月先を見るかの比較 ({runs} 回/条件, {WEEKS}週) ====")
+    print(f"\n==== 在庫の先読み期間の比較 ({runs} 回/条件, {WEEKS}週) ====")
     for key in list(sim.groups) + ["all"]:
         print(f"\n[{group_label(sim, key)}]")
-        print(f"  {'見る期間':>6} {'欠品ペア 平均/P90':>16} {'欠品確率':>6} {'ケージ費 平均 [P10-P90]':>30} {'維持交配':>6} {'購入':>6}")
+        print(f"  {'在庫の先読み期間':>6} {'欠品ペア 平均/P90':>16} {'欠品確率':>6} {'ケージ費 平均 [P10-P90]':>30} {'維持交配':>6} {'購入':>6}")
         for s in (x for x in summary if x["group"] == key):
             print(f"  {months_label(s['horizon']):>8} {s['missing_mean']:>9.2f} / {s['missing_p90']:<4.0f} "
                   f"{s['shortage_prob']:>8.0%} {s['cost_mean']:>12,.0f} [{s['cost_p10']:,.0f}-{s['cost_p90']:,.0f}] "
@@ -1009,13 +1011,13 @@ def shared_members(sim):
 
 
 def std_label(sim, horizon, std_by_key):
-    """標準の見る期間の表示。例: 3.5ヶ月（CUL1-KO-Het は 4.5ヶ月）"""
+    """標準の在庫の先読み期間の表示。例: 3.5ヶ月（CUL1-KO-Het は 4.5ヶ月）"""
     diff = [f"{group_label(sim, k)} は {months_label(h)}" for k, h in std_by_key.items() if h != horizon]
     return months_label(horizon) + (f"（{'、'.join(diff)}）" if diff else "")
 
 
 def alert_rule():
-    return (f"見直しの注意：各系統の標準の見る期間と比べて、欠品が増えずに年間ケージ費が{ALERT_COST_PCT:g}%以上安い期間、"
+    return (f"見直しの注意：各系統の標準の在庫の先読み期間と比べて、欠品が増えずに年間ケージ費が{ALERT_COST_PCT:g}%以上安い期間、"
             f"または費用が増えずに欠品が{ALERT_MISSING_PAIRS:g}ペア以上少ない期間があれば表示する。"
             f"標準で欠品が{ALERT_MISSING_PAIRS:g}ペア以上出ていて、費用をかければ減らせる場合も表示する。"
             "これより小さい差では標準を変えない。"
@@ -1025,7 +1027,7 @@ def alert_rule():
 def print_alerts(alerts, label):
     print(f"\n==== 見直しの注意 (標準 {label}) ====")
     if not alerts:
-        print("  なし (標準の見る期間のままでよい)")
+        print("  なし (標準の在庫の先読み期間のままでよい)")
     for a in alerts:
         print(f"  [{a['name']}] {a['text']}")
 
@@ -1045,7 +1047,7 @@ def report_premises(sim, runs, horizon, std_by_key, wt_lead_weeks, rule=None):
     target = [
         f"親オスの目標数 = ceil(MatingPerWeek × 休止週数{COOLDOWN_WEEKS['M']} ÷ {FEMALES_PER_MALE}) "
         f"＋ 維持繁殖用 {BREEDER_MALES} 匹（急死に備えて2匹）。",
-        "維持交配は「見る期間」先の動ける頭数（生存・生後2ヶ月以上・生後12ヶ月以下）が目標数を下回る週に行い、"
+        "維持交配は在庫の先読み期間だけ先の動ける頭数（生存・生後2ヶ月以上・生後12ヶ月以下）が目標数を下回る週に行い、"
         "交配数は翌週以降の実験用交配が組めなくならない範囲に抑える。",
         f"維持交配で生まれた子は交配の{GESTATION_DAYS}日後に誕生し、生後{MIN_AGE_MONTHS}ヶ月から親として使える。",
         "維持交配の子のうち目的系統として使えるのは、維持レシピの父母の遺伝子型から決まる割合（メンデル比）の子だけ"
@@ -1070,7 +1072,7 @@ def report_premises(sim, runs, horizon, std_by_key, wt_lead_weeks, rule=None):
     ]
     return {
         "actions": [
-            f"見る期間 {std_label(sim, horizon, std_by_key)}・産仔数は過去の平均どおりとして1回計算した結果。"
+            f"在庫の先読み期間 {std_label(sim, horizon, std_by_key)}・産仔数は過去の平均どおりとして1回計算した結果。"
             "実績とはずれていくので、毎週実行し直して最新のリストを使う。",
             *rule_common,
             "まだ生まれていない子や購入前の個体は、IDの代わりに予定として表示する。",
@@ -1092,10 +1094,10 @@ def report_premises(sim, runs, horizon, std_by_key, wt_lead_weeks, rule=None):
             f"0匹に終わる交配も含む。履歴の数は遺伝子型判定前の全頭数なので、維持交配では子1匹ずつ目的の遺伝子型かを抽選する。"
             f"条件ごとに {runs} 回くり返した平均と、P10・P90（下から10%・90%の位置）を示す。",
             "欠品ペア数：親が足りずに組めなかった実験用交配の数（52週の合計）。",
-            "系統どうしは親を共有しないので、系統タブの各行は「その系統の見る期間だけを変えた結果」として読める。"
+            "系統どうしは親を共有しないので、系統タブの各行は「その系統の在庫の先読み期間だけを変えた結果」として読める。"
             if not shared_members(sim) else
             "一部の系統が親を共有しているため（" + "、".join(group_label(sim, s) for s in shared_members(sim)) +
-            "）、系統タブの各行は全系統の見る期間を同時に変えた結果。",
+            "）、系統タブの各行は全系統の在庫の先読み期間を同時に変えた結果。",
             rule or alert_rule(),
         ],
         "cages": cage,
@@ -1156,13 +1158,14 @@ td.l,th.l{text-align:left}
 <div class="card intro">
 <h2>このレポートについて</h2>
 <p><strong>目的：</strong>系統ごとに、今週金曜にどのマウスどうしを交配するか、この先の交配とWTメスの購入、
-親の在庫を何ヶ月先まで見て補充するのがよいか（欠品とケージ費のバランス）を判断する材料にします。</p>
+親の在庫を何ヶ月先まで見込んで補充するのがよいか（欠品とケージ費のバランス）を判断する材料にします。</p>
 <dl>
+<dt>在庫の先読み期間</dt><dd>何ヶ月先の親マウスの在庫（生後2〜12ヶ月で交配に使える数）を見込んで、維持交配の数を決めるか。長くすると欠品は減るが、早めに繁殖するのでケージ費が増える。</dd>
 <dt>使い方</dt><dd>毎週、金曜の交配の前（水〜木曜）に実行し、各系統タブの「今週金曜の交配リスト」と「購入リスト」を確認します。
-月1回と実験計画を変えたとき、または下に「見直しの注意」が出たときに「見る期間の比較」を見直し、標準の見る期間を決めます。</dd>
+在庫の先読み期間は、自動判定（--auto）では系統ごとに毎週決まります。手動のときは、月1回と実験計画を変えたとき、または下に「見直しの注意」が出たときに「在庫の先読み期間の比較」を見直し、標準の在庫の先読み期間を決めます。</dd>
 <dt>対象</dt><dd id="intro-plans"></dd>
 <dt>方法</dt><dd id="intro-method"></dd>
-<dt>注意</dt><dd>シミュレーション結果は Airtable には書き込みません。実際に組んだ交配は、これまでどおり Mating に記録してください。</dd>
+<dt>注意</dt><dd>このレポート自体は Airtable に書き込みません。今週の交配は、チャットで承認したときだけ Mating に予定として登録されます。実際に交配したら、これまでどおり matingDate を記録してください。</dd>
 </dl>
 </div>
 <div id="alerts"></div>
@@ -1195,30 +1198,30 @@ const premise = items => `<details class="premise" open><summary>この結果の
 const mouse = m => m.virtual ? `<span class="virtual">${esc(m.label)}</span>` : esc(m.label);
 
 document.getElementById('sub').textContent =
-  `${DATA.start} 〜 ${DATA.end}（${DATA.weeks}週）・今週の交配日 ${DATA.start}・標準の見る期間 ${DATA.std_label}・生成 ${DATA.generated}`;
+  `${DATA.start} 〜 ${DATA.end}（${DATA.weeks}週）・今週の交配日 ${DATA.start}・標準の在庫の先読み期間 ${DATA.std_label}・生成 ${DATA.generated}`;
 document.getElementById('intro-plans').textContent = `Plan4Experiment の実験計画（${DATA.plans.join('、')}）。`;
 document.getElementById('intro-method').textContent =
   `Airtable（Resource_Mice）の在庫マウスと交配履歴をもとに、${DATA.start} から${DATA.weeks}週分の交配と在庫を週ごとに再現します。` +
-  (DATA.runs ? `見る期間の比較では、子の数を過去の実績から抽選し、${DATA.horizons.map(mo).join('、')}のそれぞれで ${DATA.runs} 回くり返します。` : '');
+  (DATA.runs ? `在庫の先読み期間の比較では、子の数を過去の実績から抽選し、${DATA.horizons.map(mo).join('、')}のそれぞれで ${DATA.runs} 回くり返します。` : '');
 
 // ---- 見直しの注意 ----
 (() => {
   const host = document.getElementById('alerts');
   if (!DATA.runs) return;
   const missing = DATA.groups.filter(g => !DATA.horizons.includes(DATA.std[g.key])).map(g => g.name);
-  const miss = missing.length ? `<p>${esc(missing.join('、'))} は標準の見る期間が比較に含まれていないため、判定していません。</p>` : '';
+  const miss = missing.length ? `<p>${esc(missing.join('、'))} は標準の在庫の先読み期間が比較に含まれていないため、判定していません。</p>` : '';
   if (DATA.auto) {
     const warn = DATA.alerts.some(a => a.kind === 'shortage');
-    host.innerHTML = `<div class="card${warn ? ' alert' : ''}"><h2>見る期間の自動判定：${esc(DATA.std_label)}</h2><ul>` +
+    host.innerHTML = `<div class="card${warn ? ' alert' : ''}"><h2>在庫の先読み期間の自動判定：${esc(DATA.std_label)}</h2><ul>` +
       DATA.alerts.map(a => `<li><strong>${esc(a.name)}</strong>：${esc(a.text)}</li>`).join('') +
       `</ul>${premise([DATA.alert_rule])}</div>`;
     return;
   }
   host.innerHTML = DATA.alerts.length
-    ? `<div class="card alert"><h2>見直しの注意：標準の見る期間（${esc(DATA.std_label)}）</h2><ul>` +
+    ? `<div class="card alert"><h2>見直しの注意：標準の在庫の先読み期間（${esc(DATA.std_label)}）</h2><ul>` +
       DATA.alerts.map(a => `<li><strong>${esc(a.name)}</strong>：${esc(a.text)}</li>`).join('') +
       `</ul>${miss}${premise([DATA.alert_rule])}</div>`
-    : `<div class="card"><h2>見直しの注意</h2><p class="alert-ok">なし。どの系統も、標準の見る期間（${esc(DATA.std_label)}）より明らかに良い期間はありません。</p>${miss}${premise([DATA.alert_rule])}</div>`;
+    : `<div class="card"><h2>見直しの注意</h2><p class="alert-ok">なし。どの系統も、標準の在庫の先読み期間（${esc(DATA.std_label)}）より明らかに良い期間はありません。</p>${miss}${premise([DATA.alert_rule])}</div>`;
 })();
 
 // ---- タブ ----
@@ -1277,16 +1280,16 @@ function groupPanel(p, g) {
 }
 
 function comparisonCards(key) {
-  if (!DATA.runs) return '<div class="card"><h2>見る期間の比較</h2><p>今回は比較を省略しました（--runs 0）。</p></div>';
+  if (!DATA.runs) return '<div class="card"><h2>在庫の先読み期間の比較</h2><p>今回は比較を省略しました（--runs 0）。</p></div>';
   // 系統タブはその系統の標準、全体タブは全系統が同じ標準のときだけ標準の行がある
   const mixed = Object.values(DATA.std).some(h => h !== DATA.horizon);
   const stdH = key === 'all' ? (mixed ? null : DATA.horizon) : DATA.std[key];
   const S = DATA.summary.filter(s => s.group === key), base = S.find(s => s.horizon === stdH) || S[0];
   const al = DATA.alerts.filter(a => a.group === key);
-  let h = `<div class="card"><h2>見る期間の比較</h2>${premise(DATA.premises.comparison)}` +
+  let h = `<div class="card"><h2>在庫の先読み期間の比較</h2>${premise(DATA.premises.comparison)}` +
     al.map(a => `<p class="alert-line"><strong>${DATA.auto ? '自動判定' : '見直しの注意'}：</strong>${esc(a.text)}</p>`).join('') +
     `<p class="note">52週で必要な実験ペアは ${base.required} ペア。数字は ${DATA.runs} 回の平均です。</p>` +
-    '<div class="tablewrap"><table><thead><tr><th>見る期間</th><th>欠品ペア（年間）</th><th>P90</th><th>欠品確率</th><th>年間ケージ費</th><th>P10〜P90</th>' +
+    '<div class="tablewrap"><table><thead><tr><th>在庫の先読み期間</th><th>欠品ペア（年間）</th><th>P90</th><th>欠品確率</th><th>年間ケージ費</th><th>P10〜P90</th>' +
     `<th>${mo(base.horizon)}との差</th><th>維持交配</th><th>WT購入</th></tr></thead><tbody>` +
     S.map(s => `<tr><td>${mo(s.horizon)}${s.horizon === stdH ? '（標準）' : ''}</td><td>${s.missing_mean.toFixed(1)} ペア</td><td>${s.missing_p90}</td>` +
       `<td>${pct(s.shortage_prob)}</td><td>${man(s.cost_mean)}</td><td>${man(s.cost_p10)}〜${man(s.cost_p90)}</td>` +
@@ -1305,7 +1308,7 @@ function allPanel(p) {
   const std = a ? `<div class="card"><h2>系統別の標準（${esc(DATA.std_label)}）での全体</h2>` +
     `<p>欠品ペア 平均 ${a.missing_mean.toFixed(1)} ペア（欠品確率 ${pct(a.shortage_prob)}）、年間ケージ費 ${man(a.cost_mean)}（P10〜P90 ${man(a.cost_p10)}〜${man(a.cost_p90)}）、` +
     `維持交配 ${a.breeding_mean.toFixed(1)} 回、WT購入 ${a.purchased_mean.toFixed(1)} 匹。</p>` +
-    '<p class="note">下の表は、全系統の見る期間を同じにした場合です。</p></div>' : '';
+    '<p class="note">下の表は、全系統の在庫の先読み期間を同じにした場合です。</p></div>' : '';
   p.innerHTML = '<p class="members">全系統の合計（ケージ費は計画にない系統の既存マウスも含む）。</p>' + std + comparisonCards('all');
   drawCharts(p, 'all');
 }
@@ -1316,7 +1319,7 @@ function drawCharts(p, key) {
   const W = DATA.weekly.filter(w => w.group === key);
   scatter(p.querySelector('.c1'), S);
   if (W.every(w => w.missing_mean === 0)) {
-    p.querySelector('.c3').innerHTML = '<p>どの見る期間でも、52週を通して実験ペアの欠品はありません。</p>';
+    p.querySelector('.c3').innerHTML = '<p>どの在庫の先読み期間でも、52週を通して実験ペアの欠品はありません。</p>';
   } else weeklyChart(p.querySelector('.c3'), p.querySelector('.lg3'), W, 'missing_mean', '週ごとの実験ペア欠品数', true,
     w => `欠品 ${w.missing_mean.toFixed(2)} ペア（欠品が起きる確率 ${pct(w.shortage_prob)}）`);
   weeklyChart(p.querySelector('.c2'), p.querySelector('.lg2'), W, 'cages_mean', '週ごとの平均ケージ数', false,
@@ -1326,7 +1329,7 @@ function drawCharts(p, key) {
 function scatter(host, S) {
   const W = 960, H = 320, m = {l: 56, r: 24, t: 16, b: 40};
   const card = host.parentNode, tip = card.querySelector('.tip');
-  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': '見る期間ごとのケージコストと実験ペア充足率'}, host);
+  const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': '在庫の先読み期間ごとのケージコストと実験ペア充足率'}, host);
   const xs = nice(Math.min(...S.map(s => s.cost_p10)) / 1e4, Math.max(...S.map(s => s.cost_p90)) / 1e4);
   const ylo = Math.min(...S.map(s => s.done_p10 / s.required)), ys = nice(Math.min(ylo * 100, 95), 100, 4);
   const X = v => m.l + (v / 1e4 - xs[0]) / (xs.at(-1) - xs[0]) * (W - m.l - m.r);
@@ -1457,13 +1460,13 @@ def print_litter_info(sim):
 
 # ======================================================================
 def write_proposal(path, sim, std_by_key, label, auto_notes, actions, purchases, summary, runs, out_rel):
-    """チャット・Airtable 反映用の提案 (今週の交配リスト・購入リスト・見る期間の判定)"""
+    """チャット・Airtable 反映用の提案 (今週の交配リスト・購入リスト・在庫の先読み期間の判定)"""
     def row(key, h):
         s = next((x for x in summary if x["group"] == key and x["horizon"] == h), None)
         return s and {k: s[k] for k in ("missing_mean", "shortage_prob", "cost_mean")}
     data = {
         "generated": datetime.now().isoformat(timespec="seconds"), "today": sim.today.isoformat(),
-        "mating_date": sim.start.isoformat(), "runs": runs, "horizon_label": label, "report": f"{out_rel}/report.html",
+        "mating_date": sim.start.isoformat(), "runs": runs, "horizon_label": label, "horizon_definition": HORIZON_DEFINITION, "report": f"{out_rel}/report.html",
         "groups": [{"key": k, "name": group_label(sim, k), "horizon": h, "metrics": row(k, h),
                     "auto": next((a for a in auto_notes if a["group"] == k), None),
                     "matings": [{"purpose": "Experiment" if mt["purpose"] == "実験用" else "Breeding",
@@ -1480,14 +1483,14 @@ def write_proposal(path, sim, std_by_key, label, auto_notes, actions, purchases,
 def main():
     ap = argparse.ArgumentParser(description="Resource_Mice 繁殖シミュレーション (Airtable は読み取りのみ)")
     ap.add_argument("--auto", action="store_true",
-                    help=f"見る期間を系統ごとに自動で決める (年間欠品ペアの上限 --max-missing 以下で最も安い期間)")
+                    help=f"在庫の先読み期間を系統ごとに自動で決める (年間欠品ペアの上限 --max-missing 以下で最も安い期間)")
     ap.add_argument("--max-missing", type=float, default=MAX_MISSING_PAIRS,
                     help="--auto のときの系統ごとの年間欠品ペアの上限")
     ap.add_argument("--horizon", type=float, default=DEFAULT_HORIZON_MONTHS,
-                    help="交配リストで使う、何ヶ月先の動けるマウスを数えるか (標準)")
+                    help="交配リストで使う在庫の先読み期間 (ヶ月, 標準。何ヶ月先の動けるマウスを数えるか)")
     ap.add_argument("--strain-horizon", action="append", default=[], metavar="系統名=ヶ月",
-                    help="系統ごとの標準の見る期間 (例: CUL1-KO-Het=4.5)。くり返し指定可。STRAIN_HORIZONS より優先")
-    ap.add_argument("--horizons", help=f"比較する見る期間 (ヶ月, カンマ区切り。既定 {DEFAULT_HORIZONS}、--auto では {AUTO_HORIZONS})")
+                    help="系統ごとの標準の在庫の先読み期間 (例: CUL1-KO-Het=4.5)。くり返し指定可。STRAIN_HORIZONS より優先")
+    ap.add_argument("--horizons", help=f"比較する在庫の先読み期間 (ヶ月, カンマ区切り。既定 {DEFAULT_HORIZONS}、--auto では {AUTO_HORIZONS})")
     ap.add_argument("--runs", type=int, help=f"比較の試行回数 (0 なら比較を省略。既定 200、--auto では {AUTO_RUNS})")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--wt-lead-weeks", type=int, default=WT_LEAD_WEEKS, help="WTメスの納期 (週)")
@@ -1516,10 +1519,10 @@ def main():
         return
     print_litter_info(sim)
 
-    # 見る期間の比較 (モンテカルロ)
+    # 在庫の先読み期間の比較 (モンテカルロ)
     summary, weekly, per_run, alerts, all_std, rule = [], [], {}, [], None, None
     if runs > 0:
-        print(f"\n比較を実行中 (見る期間 {[months_label(h) for h in horizons]}, 各 {runs} 回)...")
+        print(f"\n比較を実行中 (在庫の先読み期間 {[months_label(h) for h in horizons]}, 各 {runs} 回)...")
         summary, weekly, per_run = run_comparison(sim, horizons, runs, args.seed)
         write_csv(out_dir / "comparison_summary.csv",
                   [{**r, "group": group_label(sim, r["group"])} for r in summary])
@@ -1532,7 +1535,8 @@ def main():
         rule = auto_rule(args.max_missing, horizons)
         horizon = Counter(std_by_key.values()).most_common(1)[0][0]  # 表示上の標準 (系統で最も多い期間)
         label = std_label(sim, horizon, std_by_key)
-        print(f"\n==== 見る期間の自動判定 (系統ごとの年間欠品ペアの上限 {args.max_missing:g}) ====")
+        print(f"\n==== 在庫の先読み期間の自動判定 (系統ごとの年間欠品ペアの上限 {args.max_missing:g}) ====")
+        print(f"  ※{HORIZON_DEFINITION}")
         for a in alerts:
             print(f"  [{a['name']}] {'警告: ' if a['kind'] == 'shortage' else ''}{a['text']}")
     else:
@@ -1546,20 +1550,20 @@ def main():
         if runs > 0:
             missing = [group_label(sim, k) for k, h in std_by_key.items() if h not in horizons]
             if missing:
-                print(f"\n標準の見る期間が比較に含まれていない系統 ({'、'.join(missing)}) は、見直しの注意を判定しません。")
+                print(f"\n標準の在庫の先読み期間が比較に含まれていない系統 ({'、'.join(missing)}) は、見直しの注意を判定しません。")
             alerts = horizon_alerts(sim, summary, per_run, std_by_key)
             print_alerts(alerts, label)
 
     if runs > 0 and any(h != horizon for h in std_by_key.values()):
-        # 系統別の見る期間どおりに組んだときの全体 (計画にない系統も含むケージ費は、この実行でしか出せない)
-        print("\n系統別の見る期間で全体を計算中...")
+        # 系統別の在庫の先読み期間どおりに組んだときの全体 (計画にない系統も含むケージ費は、この実行でしか出せない)
+        print("\n系統別の在庫の先読み期間で全体を計算中...")
         all_std = next(r for r in run_comparison(sim, [horizon], runs, args.seed, std_by_key)[0]
                        if r["group"] == "all")
         print(f"  全体 ({label}): 欠品ペア {all_std['missing_mean']:.2f}  欠品確率 {all_std['shortage_prob']:.0%}  "
               f"ケージ費 {all_std['cost_mean']:,.0f} 円")
 
     # 週次の交配リスト (期待値で1回)
-    print(f"\n見る期間: {label}")
+    print(f"\n在庫の先読み期間: {label}")
     res = sim.run(horizon, record=True, horizon_by=std_by_key)
     actions, purchases = build_actions(sim, res, args.wt_lead_weeks)
     outlook = dict(res.outlook)

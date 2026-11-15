@@ -31,7 +31,7 @@ HORIZON_CHOICES = [x / 2 for x in range(3, 15)]  # 1.5〜7ヶ月 (0.5刻み)
 RECENT_RESULTS = 10
 
 
-# ---- 実験計画の系統名 (系統別の見る期間の選択肢) ----
+# ---- 実験計画の系統名 (系統別の在庫の先読み期間の選択肢) ----
 _plan_strains = {"names": None, "error": None}
 
 
@@ -112,7 +112,7 @@ def build_args(form):
     def months(v):
         h = float(v)
         if h not in HORIZON_CHOICES:
-            raise ValueError(f"見る期間 {v} は選択肢にありません")
+            raise ValueError(f"在庫の先読み期間 {v} は選択肢にありません")
         return h
 
     args = ["--horizon", f"{months(get('horizon')):g}"]
@@ -126,7 +126,7 @@ def build_args(form):
     if not 0 <= runs <= 5000:
         raise ValueError("試行回数は 0〜5000 で指定してください")
     if runs > 0 and not hs:
-        raise ValueError("比較する見る期間を1つ以上選んでください (比較しないなら試行回数を 0 に)")
+        raise ValueError("比較する在庫の先読み期間を1つ以上選んでください (比較しないなら試行回数を 0 に)")
     if hs:
         args += ["--horizons", ",".join(f"{h:g}" for h in hs)]
     args += ["--runs", str(runs)]
@@ -190,14 +190,14 @@ def home_page(error=None):
     names, load_err = load_plan_strains()
     default_hs = [float(x) for x in ms.DEFAULT_HORIZONS.split(",")]
     parts = ["<h1>繁殖シミュレーション</h1>",
-             "<p class='sub'>条件を選んで「実行」を押すと、今週金曜の交配リスト・見通し・購入リスト・見る期間の比較を作ります。"
+             "<p class='sub'>条件を選んで「実行」を押すと、今週金曜の交配リスト・見通し・購入リスト・在庫の先読み期間の比較を作ります。"
              "Airtable は読み取りのみです。</p>"]
     if JOB.running:
         parts.append("<p class='warn'>実行中です。<a href='/job'>進み具合を見る</a></p>")
     if error:
         parts.append(f"<p class='warn'>{html.escape(error)}</p>")
     if load_err:
-        parts.append(f"<p class='warn'>実験計画を読み込めませんでした（系統別の見る期間は選べません）：{html.escape(load_err)}</p>")
+        parts.append(f"<p class='warn'>実験計画を読み込めませんでした（系統別の在庫の先読み期間は選べません）：{html.escape(load_err)}</p>")
 
     strain_rows = "".join(
         f"<div class='row'><span>{html.escape(n)}</span>"
@@ -209,15 +209,15 @@ def home_page(error=None):
     parts.append(f"""
 <form method="post" action="/run">
  <div class="card"><h2>交配リスト</h2>
-  <label for="horizon">標準の見る期間</label>
+  <label for="horizon">標準の在庫の先読み期間</label>
   <select id="horizon" name="horizon">{months_options(ms.DEFAULT_HORIZON_MONTHS)}</select>
-  <p class="hint">何ヶ月先の動けるマウスを数えて維持交配を組むか。</p>
-  {"<label>系統ごとの見る期間</label><p class='hint'>標準と変えたい系統だけ選びます。</p><div class='row'>" + strain_rows + "</div>" if names else ""}
+  <p class="hint">何ヶ月先の親マウスの在庫（生後2〜12ヶ月で交配に使える数）を見込んで、維持交配の数を決めるか。長くすると欠品は減るが、早めに繁殖するのでケージ費が増える。</p>
+  {"<label>系統ごとの在庫の先読み期間</label><p class='hint'>標準と変えたい系統だけ選びます。</p><div class='row'>" + strain_rows + "</div>" if names else ""}
   <label for="lead">WTメスの納期（週）</label>
   <input id="lead" name="lead" type="number" min="0" max="26" value="{ms.WT_LEAD_WEEKS}">
  </div>
- <div class="card"><h2>見る期間の比較</h2>
-  <label>比較する見る期間</label><div class="checks">{checks}</div>
+ <div class="card"><h2>在庫の先読み期間の比較</h2>
+  <label>比較する在庫の先読み期間</label><div class="checks">{checks}</div>
   <label for="runs">試行回数</label>
   <input id="runs" name="runs" type="number" min="0" max="5000" step="50" value="200">
   <p class="hint">200回で約1分。0にすると比較を省略して交配リストだけ作ります（数秒）。</p>

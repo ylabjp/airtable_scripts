@@ -4,7 +4,7 @@ Airtable の Resource_Mice（在庫マウス・交配履歴・実験計画）か
 
 - 今週金曜の交配リスト（どのオスとどのメスを交配するか）
 - WT メスの購入リスト（必要日と発注期限）
-- 系統ごとの「何ヶ月先の動けるマウスを数えるか（見る期間）」の自動判定と、欠品・ケージ費の比較
+- 系統ごとの「在庫の先読み期間」（何ヶ月先の親マウスの在庫を見込んで維持交配の数を決めるか）の自動判定と、欠品・ケージ費の比較
 
 入口のURL: https://github.com/ylabjp/airtable_scripts/tree/mating-simulation/mating_simulation
 （一式は `mating-simulation` ブランチにだけあり、main にはありません）
@@ -22,7 +22,7 @@ Claude 向けの手順は [CLAUDE.md](CLAUDE.md) にあります（Claude はこ
 ## 手元で動かす場合
 ```
 pip install -r requirements.txt
-python mating_simulation.py --auto          # 見る期間を系統ごとに自動で決める（約25分）
+python mating_simulation.py --auto          # 在庫の先読み期間を系統ごとに自動で決める（約25分）
 python mating_simulation.py --runs 0        # 交配リストだけ（速い）
 python apply_proposal.py results/<日時>/proposal.json   # 登録する内容の表示（書き込まない）
 ```

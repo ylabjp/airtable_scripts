@@ -7,16 +7,16 @@ Resource_Mice（Airtable base `appBwTnvAtEXHip0i`）の在庫と交配履歴か�
 1. `python -m pip install -r requirements.txt`（`pip` と `python` が別の Python を指す環境があるので、必ず `python -m pip` で入れる）
 2. `python mating_simulation.py --auto`（クラウドで約5〜10分、手元のPCで約25分。バックグラウンドで実行し、終わるまで待つ）
    - 読み取りトークンは環境変数 `AIRTABLE_TOKEN`（クラウド環境のシークレット）。値を表示・保存・コミットしない
-   - 見る期間は系統ごとに自動で決まる（年間欠品ペアの95%範囲の上側が `MAX_MISSING_PAIRS` 以下で、ケージ費が最も安い期間）
-3. 出力は `results/<日時>/`：`proposal.json`（今週の交配・購入・見る期間の判定）と `report.html`
+   - 在庫の先読み期間は系統ごとに自動で決まる（年間欠品ペアの95%範囲の上側が `MAX_MISSING_PAIRS` 以下で、ケージ費が最も安い期間）
+3. 出力は `results/<日時>/`：`proposal.json`（今週の交配・購入・在庫の先読み期間の判定）と `report.html`
    - `proposal.json` が `"no_plans": true` のときは実験計画がなく、計算していない（report.html もない）。
      `note` を伝え、Plan4Experiment の MatingPerWeek がすべて 0 か未入力であること、意図したものか確認してほしいことを報告して終わる
 4. `report.html` を Artifact（非公開）として公開し、リンクを得る。Artifact が使えない環境なら、そのことを伝える
 
 ## 2. チャットへの報告
 `proposal.json` から、次の順に短く書く。
-1. 警告：見る期間の判定で `auto.kind == "shortage"` の系統があれば最初に書く（欠品の上限を満たせない）
-2. 系統ごとの見る期間と、年間の欠品ペア・ケージ費（`groups[].auto.text` を要約）
+1. 警告：在庫の先読み期間の判定で `auto.kind == "shortage"` の系統があれば最初に書く（欠品の上限を満たせない）
+2. 系統ごとの在庫の先読み期間と、年間の欠品ペア・ケージ費（`groups[].auto.text` を要約）。この言葉が報告で最初に出るところに、`horizon_definition` の一文を添える
 3. 今週金曜（`mating_date`）の交配リスト：系統ごとに、オス × メス、実験用／維持用。購入予定の個体を使う交配はそう書く
 4. WT 購入：`status` が「期限切れ」「今週中に発注」のものだけ（必要日・匹数）
 5. レポートのリンク
