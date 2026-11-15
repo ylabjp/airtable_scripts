@@ -39,7 +39,7 @@ PC に Python などを入れる必要はありません。次の5つを一度�
 | 項目 | 値 |
 | --- | --- |
 | 実行日時 | 毎週木曜 10:00（日本時間。cron は UTC で `0 1 * * 4`） |
-| リポジトリ | ylabjp/airtable_scripts（ブランチ mating-simulation） |
+| リポジトリ | ylabjp/airtable_scripts（main ブランチ。修正はプルリクエストをマージした時点で反映される） |
 | 環境 | mice-simulation |
 | コネクタ | Airtable |
 | モデル | Sonnet |
@@ -52,7 +52,7 @@ PC に Python などを入れる必要はありません。次の5つを一度�
 ```
 マウス繁殖シミュレーションの週次実行です。日本語で対応してください。
 
-1. リポジトリ ylabjp/airtable_scripts の mating-simulation ブランチに切り替える（git fetch origin mating-simulation && git checkout mating-simulation）。
+1. リポジトリ ylabjp/airtable_scripts の main ブランチ（取得されたままの状態）を使う。ブランチは切り替えない。
 2. mating_simulation/ フォルダに移動し、mating_simulation/CLAUDE.md を読む。
 3. CLAUDE.md の「1. 週次の実行」と「2. チャットへの報告」を行う。シミュレーション（python mating_simulation.py --auto）は時間がかかるので、バックグラウンドで実行して終わるまで待つ。環境変数 AIRTABLE_TOKEN は設定済み（読み取り専用）。
 
