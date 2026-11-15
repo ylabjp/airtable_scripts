@@ -1505,6 +1505,15 @@ def main():
     sim = Simulator(fetch_inputs(at), today)
     out_dir = SCRIPT_DIR / "results" / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
+    if not sim.plans:
+        # 実験計画がない (どの計画も MatingPerWeek が 0 か未入力) ときは、必要な交配がないので計算しない
+        note = "Plan4Experiment に MatingPerWeek が 1 以上の実験計画がないため、今週の交配はありません。"
+        (out_dir / "proposal.json").write_text(json.dumps({
+            "generated": datetime.now().isoformat(timespec="seconds"), "today": today.isoformat(),
+            "mating_date": sim.start.isoformat(), "runs": 0, "horizon_label": "", "report": None,
+            "no_plans": True, "note": note, "groups": []}, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"\n{note}\n出力: results/{stamp}/ (proposal.json)")
+        return
     print_litter_info(sim)
 
     # 見る期間の比較 (モンテカルロ)
