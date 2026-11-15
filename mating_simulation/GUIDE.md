@@ -112,7 +112,7 @@ PC に Python などを入れる必要はありません。次の5つを一度�
 
 ## 設定の変え方と前提
 
-実行日時はルーチンのページで変えられます。それ以外の設定は `mating_simulation.py` の値なので、保守担当に頼みます。
+実行日時はルーチンのページで、実験計画は Airtable で変えます。それ以外の設定は `mating_simulation/mating_simulation.py` の冒頭にある1行の値で、下の「設定の値を変える手順」で変えられます。
 
 | 設定 | いまの値 | 変える場所 |
 | --- | --- | --- |
@@ -122,6 +122,32 @@ PC に Python などを入れる必要はありません。次の5つを一度�
 | WT メスの納期 | 3週（仮置き） | `WT_LEAD_WEEKS` |
 | ケージ費 | 1ケージ・1日 60円 | `CAGE_COST_PER_DAY` |
 | 実験計画（週あたりのペア数） | Airtable の Plan4Experiment | Airtable（次の実行から反映） |
+
+### 設定の値を変える手順
+
+どの設定も、`=` の右側の数字を書き換えるだけです。行の後ろの `# …` は説明書きなので、そのままにします。
+
+| 設定 | 今の書き方 | 変える例 |
+| --- | --- | --- |
+| 欠品の上限 | `MAX_MISSING_PCT = 1.0` | 2% にする → `MAX_MISSING_PCT = 2.0` |
+| 在庫の先読み期間の候補 | `AUTO_HORIZONS = "3,3.5,4,4.5,5,5.5,6"` | 3〜5ヶ月だけ → `AUTO_HORIZONS = "3,3.5,4,4.5,5"` |
+| WT メスの納期 | `WT_LEAD_WEEKS = 3` | 2週 → `WT_LEAD_WEEKS = 2` |
+| ケージ費 | `CAGE_COST_PER_DAY = 60` | 70円 → `CAGE_COST_PER_DAY = 70` |
+
+**A. Claude に頼む（おすすめ）**
+
+1. Claude（チャットや Claude Code のセッション）に「WT メスの納期を2週にして」のように頼む。
+2. Claude が書き換えて、プルリクエストの URL を返す。
+3. その URL を開いてマージする。次の木曜の定期実行から新しい値で動く。
+
+**B. GitHub の画面で自分で変える**
+
+1. [mating_simulation.py](https://github.com/ylabjp/airtable_scripts/blob/main/mating_simulation/mating_simulation.py) を開き、右上の鉛筆アイコン（Edit this file）を押す。
+2. 上の表の行を探し、`=` の右側の数字だけを書き換える。引用符（`"`）やカンマは消さない。
+3. 右上の「Commit changes…」を押し、メッセージ欄に「WTの納期を2週に変更」のように書く。
+4. 「Commit directly to the main branch」を選んで「Commit changes」を押す。確認してから入れたいときは「Create a new branch…」を選ぶと、プルリクエストになる。
+
+main に入った時点で、次の定期実行から反映されます。数字以外（記号や全角文字）を入れると定期実行がエラーで止まり、報告にエラーの内容が出ます。
 
 しくみの前提と注意：
 

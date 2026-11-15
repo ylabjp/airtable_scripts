@@ -24,6 +24,7 @@ pip install -r requirements.txt
 python mating_simulation.py --auto          # 在庫の先読み期間を系統ごとに自動で決める（約25分）
 python mating_simulation.py --runs 0        # 交配リストだけ（速い）
 python apply_proposal.py results/<日時>/proposal.json   # 登録する内容の表示（書き込まない）
+python -m unittest discover -s tests -v   # 仕様テスト（コードを変えたら必ず実行）
 ```
 トークンは環境変数 `AIRTABLE_TOKEN`、またはこのフォルダの `.env`（`AIRTABLE_TOKEN=...`）に置きます。`.env` はコミットしません。
 画面から使う場合は `start_webapp.bat`（`python webapp.py`）。
@@ -32,6 +33,7 @@ python apply_proposal.py results/<日時>/proposal.json   # 登録する内容�
 - `GUIDE.md`：利用ガイド（使う人向け）
 - `CLAUDE.md`：週次運用の手順（Claude 向け）
 - `mating_simulation.py`：シミュレーション本体。出力は `results/<日時>/`（report.html, proposal.json, CSV）
+- `tests/`：仕様テスト。合意した仕様（交配の規則、在庫の先読み期間の判定、登録する項目など）を確かめる
 - `apply_proposal.py`：proposal.json から Mating に登録するレコードを作る（重複・未登録個体を除く）
 - `webapp.py` / `start_webapp.bat`：手元で条件を選んで実行する画面
 - `simulation_spec.md`：最初の仕様（依頼時のもの）
